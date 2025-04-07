@@ -1,6 +1,6 @@
 {
   "name": "Liventin/base.module",
-  "type": "bitrix-module",
+  "type": "bitrix-d7-module",
   "description": "Base functionality for Bitrix module template, including options service",
   "require": {
     "php": ">=8.1"
@@ -10,14 +10,10 @@
   },
   "extra": {
     "installer-paths": {
-      "./": [
-        "type:bitrix-module"
+      "./src/": [
+        "type:bitrix-d7-module"
       ]
-    },
-    "exclude-from-files": [
-      "scripts",
-      "composer.json"
-    ]
+    }
   },
   "scripts": {
     "post-install-cmd": [
