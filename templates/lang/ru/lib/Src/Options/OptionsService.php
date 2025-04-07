@@ -1,0 +1,5 @@
+<?php
+
+$MESS['BASE_MODULE_MODULE_OPTIONS_APPLY'] = 'Сохранить';
+$MESS['BASE_MODULE_MODULE_OPTIONS_RESET'] = 'Сбросить';
+$MESS['BASE_MODULE_MODULE_OPTIONS_REINSTALL'] = 'Обновить зависимости';
