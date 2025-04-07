@@ -15,7 +15,8 @@
       ]
     },
     "exclude-from-files": [
-      "scripts/"
+      "scripts/",
+      "composer.json"
     ]
   },
   "scripts": {
