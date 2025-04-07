@@ -3,8 +3,7 @@
   "type": "bitrix-module",
   "description": "Base functionality for Bitrix module template, including options service",
   "require": {
-    "php": ">=8.1",
-    "bitrix/main": "*"
+    "php": ">=8.1"
   }
   ,
   "require-dev": {
