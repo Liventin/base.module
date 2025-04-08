@@ -1,3 +1,4 @@
+```
 {
   "name": "provider/modul.name",
   "description": "bitrix module",
@@ -21,3 +22,4 @@
     "post-install-cmd": "@post-update-cmd"
   }
 }
+```
