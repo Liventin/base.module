@@ -56,7 +56,8 @@ $specialFiles = [
     '.settings.php',
     'default_option.php',
     'include.php',
-    'prolog.php'
+    'prolog.php',
+    '/lang/ru/install/index.php'
 ];
 
 $movedFiles = [];
