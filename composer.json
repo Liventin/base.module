@@ -10,9 +10,8 @@
   },
   "scripts": {
     "post-update-cmd": [
-      "/usr/bin/php --version",
-      "/usr/bin/php vendor/liventin/base.module/post-install.php"
+      "/usr/bin/php vendor/liventin/base.module/scripts/post-install.php"
     ],
-    "post-install-cmd": "/usr/bin/php --version"
+    "post-install-cmd": "@post-update-cmd"
   }
 }
