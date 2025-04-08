@@ -34,7 +34,7 @@ $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Namespace prefix: $namespacePrefix\n";
 
 // Определяем директорию пакета в vendor
-$vendorDir = dirname(__DIR__, 4) . '/';
+$vendorDir = dirname(__DIR__, 3);
 $packageDir = $vendorDir . '/liventin/base.module';
 echo "Package directory: $packageDir\n";
 if (!is_dir($packageDir)) {
