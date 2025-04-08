@@ -11,7 +11,7 @@ use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Loader;
 use Bitrix\Main\SystemException;
 use Bitrix\Main\ObjectNotFoundException;
-use Base\Module\Exception\BaseModuleException;
+use Base\Module\Exception\ModuleException;
 use Base\Module\Service\Container;
 use Base\Module\Service\Tool\ClassList as IClassList;
 use Base\Module\Install\Interface\Install;
@@ -78,7 +78,7 @@ class base_module extends CModule
             );
 
             if ($installedClasses === false) {
-                throw new BaseModuleException('Installation failed, rollback performed');
+                throw new ModuleException('Installation failed, rollback performed');
             }
         } catch (Throwable $e) {
             $exception->AddMessage(['text' => $e->getMessage()]);
@@ -132,7 +132,7 @@ class base_module extends CModule
     /**
      * @param bool $isManual
      * @return void
-     * @throws BaseModuleException
+     * @throws ModuleException
      */
     public function ReInstall(bool $isManual = false): void
     {
@@ -153,7 +153,7 @@ class base_module extends CModule
                 __DIR__ . '/step.php'
             );
         } elseif ($exception->GetMessages()) {
-            throw new BaseModuleException($exception->GetString());
+            throw new ModuleException($exception->GetString());
         }
     }
 
@@ -166,7 +166,7 @@ class base_module extends CModule
      * @param string|null $rollbackSortMethod
      * @param bool|null $param
      * @return array|false
-     * @throws BaseModuleException
+     * @throws ModuleException
      * @throws NotFoundExceptionInterface
      * @throws ObjectNotFoundException
      * @throws ReflectionException
@@ -212,7 +212,7 @@ class base_module extends CModule
         }
 
         if ($exception->GetMessages()) {
-            throw new BaseModuleException('Execution failed: ' . $exception->GetString());
+            throw new ModuleException('Execution failed: ' . $exception->GetString());
         }
 
         return $installed;

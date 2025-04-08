@@ -1,13 +1,11 @@
 <?php
-// scripts/post-install.php
+// post-install.php
 
 echo "Starting post-install script...\n";
 
-// Определяем корневую директорию модуля (где находится composer.json для установки)
 $moduleDir = dirname(__DIR__, 4);
 echo "Module directory: $moduleDir\n";
 
-// Находим composer.json в корне модуля
 $composerJsonPath = $moduleDir . '/composer.json';
 echo "Looking for composer.json at: $composerJsonPath\n";
 if (!file_exists($composerJsonPath)) {
@@ -15,13 +13,17 @@ if (!file_exists($composerJsonPath)) {
     exit(1);
 }
 
-$composerData = json_decode(file_get_contents($composerJsonPath), true, 512, JSON_THROW_ON_ERROR);
+try {
+    $composerData = json_decode(file_get_contents($composerJsonPath), true, 512, JSON_THROW_ON_ERROR);
+} catch (JsonException $e) {
+    echo "Failed to parse composer.json: " . $e->getMessage() . "\n";
+    exit(1);
+}
 if (json_last_error() !== JSON_ERROR_NONE) {
     echo "Failed to parse composer.json: " . json_last_error_msg() . "\n";
     exit(1);
 }
 
-// Получаем имя модуля из поля name (берем вторую часть после слэша)
 $moduleName = explode('/', $composerData['name'])[1] ?? null;
 echo "Determined module name: $moduleName\n";
 if (!$moduleName) {
@@ -29,11 +31,9 @@ if (!$moduleName) {
     exit(1);
 }
 
-// Формируем namespace на основе имени модуля
 $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Namespace prefix: $namespacePrefix\n";
 
-// Определяем директорию пакета в vendor
 $vendorDir = dirname(__DIR__, 3);
 $packageDir = $vendorDir . '/liventin/base.module';
 echo "Package directory: $packageDir\n";
@@ -42,7 +42,6 @@ if (!is_dir($packageDir)) {
     exit(1);
 }
 
-// Перемещаем файлы из vendor/liventin/base.module/ в корень модуля, исключая scripts/ и composer.json
 echo "Moving files from $packageDir to $moduleDir...\n";
 $iterator = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
@@ -54,8 +53,14 @@ $excludePaths = [
     $packageDir . '/composer.json'
 ];
 
+$specialFiles = [
+    '.settings.php',
+    'default_option.php',
+    'include.php',
+    'prolog.php'
+];
+
 foreach ($iterator as $item) {
-    // Пропускаем исключённые пути
     $itemPath = $item->getPathname();
     $shouldSkip = false;
     foreach ($excludePaths as $excludePath) {
@@ -68,7 +73,6 @@ foreach ($iterator as $item) {
         continue;
     }
 
-    // Определяем целевой путь
     $relativePath = substr($itemPath, strlen($packageDir) + 1);
     $targetPath = $moduleDir . '/' . $relativePath;
 
@@ -80,17 +84,29 @@ foreach ($iterator as $item) {
             echo "Created directory: $targetPath\n";
         }
     } else {
-        echo "Moving file: $itemPath to $targetPath\n";
-        rename($itemPath, $targetPath);
+        $fileName = basename($itemPath);
+        if (in_array($fileName, $specialFiles, true)) {
+            if (file_exists($targetPath)) {
+                echo "File $fileName already exists at $targetPath, removing from source: $itemPath\n";
+                unlink($itemPath);
+            } else {
+                echo "Moving special file: $itemPath to $targetPath\n";
+                rename($itemPath, $targetPath);
+            }
+        } else {
+            echo "Moving file: $itemPath to $targetPath\n";
+            rename($itemPath, $targetPath);
+        }
     }
 }
 
-// Применяем замены namespace и других переменных
 $replacements = [
     'base.module' => $moduleName,
     'Base\\Module' => $namespacePrefix,
     'base_module' => str_replace('.', '_', $moduleName),
 ];
+$replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
+
 
 echo "Applying replacements in PHP files...\n";
 $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir));
@@ -108,4 +124,37 @@ foreach ($iterator as $file) {
     }
 }
 
+echo "Cleaning up empty directories in $packageDir...\n";
+function removeEmptyDirectories(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        if ($item->isDir()) {
+            $subDir = $item->getPathname();
+            $files = array_diff(scandir($subDir), ['.', '..']);
+            if (empty($files)) {
+                echo "Removing empty directory: $subDir\n";
+                rmdir($subDir);
+            }
+        }
+    }
+
+    $files = array_diff(scandir($dir), ['.', '..']);
+    if (empty($files)) {
+        echo "Removing empty root directory: $dir\n";
+        rmdir($dir);
+    }
+}
+
+removeEmptyDirectories($packageDir);
+
 echo "Module namespace and variables updated for $moduleName\n";
+error_log("Post-install script completed for $moduleName", 0);
