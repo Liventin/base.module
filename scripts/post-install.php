@@ -4,7 +4,7 @@
 echo "Starting post-install script...\n";
 
 // Определяем корневую директорию модуля (где находится composer.json для установки)
-$moduleDir = dirname(__DIR__, 3);
+$moduleDir = dirname(__DIR__, 4);
 echo "Module directory: $moduleDir\n";
 
 // Находим composer.json в корне модуля
@@ -34,7 +34,7 @@ $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Namespace prefix: $namespacePrefix\n";
 
 // Определяем директорию пакета в vendor
-$vendorDir = dirname(__DIR__, 3) . '/';
+$vendorDir = dirname(__DIR__, 4) . '/';
 $packageDir = $vendorDir . '/liventin/base.module';
 echo "Package directory: $packageDir\n";
 if (!is_dir($packageDir)) {
