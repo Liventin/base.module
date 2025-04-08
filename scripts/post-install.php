@@ -50,7 +50,8 @@ $iterator = new RecursiveIteratorIterator(
 
 $excludePaths = [
     $packageDir . '/scripts',
-    $packageDir . '/composer.json'
+    $packageDir . '/composer.json',
+    $packageDir . '/README.md'
 ];
 
 $specialFiles = [
