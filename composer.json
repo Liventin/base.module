@@ -9,11 +9,11 @@
     "roave/security-advisories": "dev-latest"
   },
   "scripts": {
-    "post-install-cmd": [
-      "php scripts/post-install.php"
-    ],
     "post-update-cmd": [
-      "php scripts/post-install.php"
+      "php vendor/Liventin/base.module/scripts/post-install.php"
+    ],
+    "post-install-cmd": [
+      "@post-update-cmd"
     ]
   }
 }
