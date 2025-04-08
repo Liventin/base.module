@@ -1,4 +1,5 @@
 <?php
+
 echo "Starting post-install script...\n";
 
 $moduleDir = dirname(__DIR__, 4);
@@ -52,12 +53,13 @@ $excludePaths = [
     $packageDir . '/README.md'
 ];
 
-$specialFiles = [
-    '.settings.php',
-    'default_option.php',
-    'include.php',
-    'prolog.php',
-    '/lang/ru/install/index.php'
+$protectedPaths = [
+    '.settings.php' => '.settings.php',
+    'default_option.php' => 'default_option.php',
+    'include.php' => 'include.php',
+    'prolog.php' => 'prolog.php',
+    'lang/ru/install/index.php' => 'index.php',
+    'install/version.php' => 'version.php'
 ];
 
 $movedFiles = [];
@@ -86,13 +88,21 @@ foreach ($iterator as $item) {
             echo "Created directory: $targetPath\n";
         }
     } else {
+        $isProtected = false;
         $fileName = basename($itemPath);
-        if (in_array($fileName, $specialFiles, true)) {
+        foreach ($protectedPaths as $protectedPath => $protectedFileName) {
+            if ($relativePath === $protectedPath && $fileName === $protectedFileName) {
+                $isProtected = true;
+                break;
+            }
+        }
+
+        if ($isProtected) {
             if (file_exists($targetPath)) {
-                echo "File $fileName already exists at $targetPath, removing from source: $itemPath\n";
+                echo "File $fileName at $relativePath already exists at $targetPath, removing from source: $itemPath\n";
                 unlink($itemPath);
             } else {
-                echo "Moving special file: $itemPath to $targetPath\n";
+                echo "Moving protected file: $itemPath to $targetPath\n";
                 rename($itemPath, $targetPath);
                 $movedFiles[] = $targetPath;
             }
@@ -139,7 +149,6 @@ function removeEmptyDirectories(string $dir): void
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
-            // Проверяем, пуста ли директория
             $subDir = $item->getPathname();
             $files = array_diff(scandir($subDir), ['.', '..']);
             if (empty($files)) {
