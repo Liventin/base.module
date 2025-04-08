@@ -1,6 +1,4 @@
 <?php
-// post-install.php
-
 echo "Starting post-install script...\n";
 
 $moduleDir = dirname(__DIR__, 4);
@@ -61,6 +59,8 @@ $specialFiles = [
     'prolog.php'
 ];
 
+$movedFiles = [];
+
 foreach ($iterator as $item) {
     $itemPath = $item->getPathname();
     $shouldSkip = false;
@@ -93,10 +93,12 @@ foreach ($iterator as $item) {
             } else {
                 echo "Moving special file: $itemPath to $targetPath\n";
                 rename($itemPath, $targetPath);
+                $movedFiles[] = $targetPath;
             }
         } else {
             echo "Moving file: $itemPath to $targetPath\n";
             rename($itemPath, $targetPath);
+            $movedFiles[] = $targetPath;
         }
     }
 }
@@ -108,20 +110,17 @@ $replacements = [
 ];
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 
-
-echo "Applying replacements in PHP files...\n";
-$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir));
-
-foreach ($iterator as $file) {
-    if ($file->isFile() && $file->getExtension() === 'php') {
-        echo "Processing file: " . $file->getPathname() . "\n";
-        $content = file_get_contents($file->getPathname());
+echo "Applying replacements in moved PHP files...\n";
+foreach ($movedFiles as $filePath) {
+    if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
+        echo "Processing moved file: $filePath\n";
+        $content = file_get_contents($filePath);
         $newContent = str_replace(
             array_keys($replacements),
             array_values($replacements),
             $content
         );
-        file_put_contents($file->getPathname(), $newContent);
+        file_put_contents($filePath, $newContent);
     }
 }
 
@@ -139,6 +138,7 @@ function removeEmptyDirectories(string $dir): void
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
+            // Проверяем, пуста ли директория
             $subDir = $item->getPathname();
             $files = array_diff(scandir($subDir), ['.', '..']);
             if (empty($files)) {
