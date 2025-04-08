@@ -1,5 +1,5 @@
 {
-  "name": "Liventin/base.module",
+  "name": "liventin/base.module",
   "type": "bitrix-d7-module",
   "description": "Base functionality for Bitrix module template, including options service",
   "require": {
@@ -10,7 +10,7 @@
   },
   "scripts": {
     "post-update-cmd": [
-      "php vendor/Liventin/base.module/scripts/post-install.php"
+      "/usr/bin/php vendor/liventin/base.module/scripts/post-install.php"
     ],
     "post-install-cmd": [
       "@post-update-cmd"
