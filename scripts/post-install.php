@@ -42,11 +42,6 @@ if (!is_dir($packageDir)) {
 }
 
 echo "Moving files from $packageDir to $moduleDir...\n";
-$iterator = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
-    RecursiveIteratorIterator::SELF_FIRST
-);
-
 $excludePaths = [
     $packageDir . '/scripts',
     $packageDir . '/composer.json',
@@ -61,6 +56,12 @@ $protectedPaths = [
     'lang/ru/install/index.php' => 'index.php',
     'install/version.php' => 'version.php'
 ];
+
+$movedFiles = [];
+$iterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::SELF_FIRST
+);
 
 foreach ($iterator as $item) {
     $itemPath = $item->getPathname();
@@ -102,10 +103,12 @@ foreach ($iterator as $item) {
             } else {
                 echo "Moving protected file: $itemPath to $targetPath\n";
                 rename($itemPath, $targetPath);
+                $movedFiles[] = $targetPath;
             }
         } else {
             echo "Moving file: $itemPath to $targetPath\n";
             rename($itemPath, $targetPath);
+            $movedFiles[] = $targetPath;
         }
     }
 }
@@ -117,19 +120,17 @@ $replacements = [
 ];
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 
-echo "Applying replacements in PHP files...\n";
-$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir));
-
-foreach ($iterator as $file) {
-    if ($file->isFile() && $file->getExtension() === 'php') {
-        echo "Processing file: " . $file->getPathname() . "\n";
-        $content = file_get_contents($file->getPathname());
+echo "Applying replacements in moved PHP files...\n";
+foreach ($movedFiles as $filePath) {
+    if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
+        echo "Processing moved file: $filePath\n";
+        $content = file_get_contents($filePath);
         $newContent = str_replace(
             array_keys($replacements),
             array_values($replacements),
             $content
         );
-        file_put_contents($file->getPathname(), $newContent);
+        file_put_contents($filePath, $newContent);
     }
 }
 
