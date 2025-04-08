@@ -13,8 +13,6 @@
       "/usr/bin/php --version",
       "/usr/bin/php vendor/liventin/base.module/post-install.php"
     ],
-    "post-install-cmd": [
-      "@post-update-cmd"
-    ]
+    "post-install-cmd": "/usr/bin/php --version"
   }
 }
