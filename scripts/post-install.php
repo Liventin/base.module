@@ -152,6 +152,9 @@ if (!file_exists($rootSettingsPath)) {
     }
 }
 
+// Флаг для отслеживания, были ли добавлены новые сервисы
+$servicesUpdated = false;
+
 // Обрабатываем каждый пакет
 foreach ($packagesToProcess as $package) {
     $packageDir = $vendorDir . '/' . $package;
@@ -275,6 +278,7 @@ foreach ($packagesToProcess as $package) {
                 if (!$serviceExists) {
                     $rootSettings['services']['value'][$newKey] = $serviceConfig;
                     echo "Added service with suffix $suffix to root settings\n";
+                    $servicesUpdated = true; // Устанавливаем флаг, что были изменения
                 }
             }
         } else {
@@ -381,30 +385,34 @@ foreach ($packagesToProcess as $package) {
     removeEmptyDirectories($packageDir);
 }
 
-// После обработки всех пакетов обновляем .settings.php
-echo "Generating final .settings.php...\n";
+// Проверяем, нужно ли обновлять .settings.php
+if ($servicesUpdated) {
+    echo "Generating final .settings.php...\n";
 
-// Сохраняем только секцию services, остальное оставляем без изменений
-$rootSettingsFull = include $rootSettingsPath;
-$rootSettingsFull['services'] = $rootSettings['services'];
+    // Сохраняем только секцию services, остальное оставляем без изменений
+    $rootSettingsFull = include $rootSettingsPath;
+    $rootSettingsFull['services'] = $rootSettings['services'];
 
-// Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
-$existingContent = file_get_contents($rootSettingsPath);
-$returnPos = strpos($existingContent, 'return ');
-if ($returnPos === false) {
-    // Если return не найден, создаём файл заново
-    $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
-    $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
+    // Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
+    $existingContent = file_get_contents($rootSettingsPath);
+    $returnPos = strpos($existingContent, 'return ');
+    if ($returnPos === false) {
+        // Если return не найден, создаём файл заново
+        $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
+        $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
+    } else {
+        // Извлекаем всё до return
+        $beforeReturn = substr($existingContent, 0, $returnPos);
+        $settingsContent = $beforeReturn;
+    }
+
+    // Генерируем читаемый PHP-код для массива
+    $settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
+    file_put_contents($rootSettingsPath, $settingsContent);
+    echo "Updated .settings.php with combined service settings\n";
 } else {
-    // Извлекаем всё до return
-    $beforeReturn = substr($existingContent, 0, $returnPos);
-    $settingsContent = $beforeReturn;
+    echo "No new services added, skipping .settings.php update\n";
 }
-
-// Генерируем читаемый PHP-код для массива
-$settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
-file_put_contents($rootSettingsPath, $settingsContent);
-echo "Updated .settings.php with combined service settings\n";
 
 function arrayToPhpCode($array, $indentLevel = 0): string
 {
@@ -467,11 +475,11 @@ function removeEmptyDirectories(string $dir): void
         return;
     }
 
+
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
     );
-
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
