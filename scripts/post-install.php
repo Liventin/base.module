@@ -211,7 +211,7 @@ foreach ($packagesToProcess as $package) {
                 // Для base.module.class.list -> class.list
                 // Для base.module.handlers.handlers.service -> handlers.service
                 $suffix = implode('.', array_slice($parts, -2));
-                $newServiceKey = ['prefix' => '$moduleId', 'suffix' => $suffix];
+                $newServiceKey = ['prefix' => '$moduleId', 'suffix' => '.' . $suffix];
                 if (isset($serviceConfig['className'])) {
                     $updatedServices[] = [
                         'key' => $newServiceKey,
@@ -233,11 +233,9 @@ foreach ($packagesToProcess as $package) {
                         }
                     } else {
                         // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
-                        $updatedServices[count($updatedServices) - 1]['config']['className'] = str_replace(
-                            'Base\\Module',
-                            $namespacePrefix,
-                            $serviceConfig['className']
-                        );
+                        $className = $serviceConfig['className'];
+                        $className = str_replace(['::class', 'Base\\Module'], ['', $namespacePrefix], $className);
+                        $updatedServices[count($updatedServices) - 1]['config']['className'] = $className . '::class';
                     }
                 }
             }
