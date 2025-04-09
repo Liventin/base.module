@@ -196,20 +196,22 @@ foreach ($packagesToProcess as $package) {
                     }
                 }
 
-
                 if (!$serviceExists) {
                     if (isset($serviceConfig['className'])) {
+                        $className = $serviceConfig['className'];
+                        echo "Original className for $serviceName: $className\n";
+                        $className = str_replace('::class', '', $className);
+
+
                         if ($hasRedirect) {
                             // Обновляем namespace для перенаправленного пакета
                             $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
-                            $className = $serviceConfig['className'];
-                            echo "Original className for $serviceName (redirected): $className\n";
-                            $className = str_replace('::class', '', $className);
                             $lastSlashPos = strrpos($className, '\\');
                             if ($lastSlashPos !== false) {
                                 $classNamespace = substr($className, 0, $lastSlashPos);
                                 $classOnly = substr($className, $lastSlashPos + 1);
-                                $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
+                                // Заменяем текущий namespace модуля (например, Base\Two) на перенаправленный (например, Base\One)
+                                $updatedNamespace = str_replace($namespacePrefix, $redirectNamespacePrefix, $classNamespace);
                                 $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
                                 $serviceConfig['className'] = $newClassName;
                                 echo "Updated className for $serviceName (redirected): $newClassName\n";
@@ -219,9 +221,7 @@ foreach ($packagesToProcess as $package) {
                             }
                         } else {
                             // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
-                            $className = $serviceConfig['className'];
-                            echo "Original className for $serviceName: $className\n";
-                            $className = str_replace(['::class', 'Base\\Module'], ['', $namespacePrefix], $className);
+                            $className = str_replace('Base\\Module', $namespacePrefix, $className);
                             $newClassName = $className . '::class';
                             $serviceConfig['className'] = $newClassName;
                             echo "Updated className for $serviceName: $newClassName\n";
