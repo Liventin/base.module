@@ -213,10 +213,12 @@ foreach ($packagesToProcess as $package) {
                 $suffix = implode('.', array_slice($parts, -2));
                 $newServiceKey = ['prefix' => '$moduleId', 'suffix' => $suffix];
                 if (isset($serviceConfig['className'])) {
-                    $updatedServices[$serviceName] = $serviceConfig;
-                    $updatedServices[$serviceName]['key'] = $newServiceKey;
+                    $updatedServices[] = [
+                        'key' => $newServiceKey,
+                        'config' => $serviceConfig,
+                    ];
                     // Обновляем constructorParams
-                    $updatedServices[$serviceName]['constructorParams'] = ['$moduleId'];
+                    $updatedServices[count($updatedServices) - 1]['config']['constructorParams'] = ['$moduleId'];
                     if ($hasRedirect) {
                         // Обновляем namespace для перенаправленного пакета
                         $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
@@ -227,11 +229,11 @@ foreach ($packagesToProcess as $package) {
                             $classNamespace = substr($className, 0, $lastSlashPos);
                             $classOnly = substr($className, $lastSlashPos + 1);
                             $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
-                            $updatedServices[$serviceName]['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
+                            $updatedServices[count($updatedServices) - 1]['config']['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
                         }
                     } else {
                         // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
-                        $updatedServices[$serviceName]['className'] = str_replace(
+                        $updatedServices[count($updatedServices) - 1]['config']['className'] = str_replace(
                             'Base\\Module',
                             $namespacePrefix,
                             $serviceConfig['className']
@@ -241,11 +243,16 @@ foreach ($packagesToProcess as $package) {
             }
 
             // Добавляем только новые ключи в секцию services['value']
-            foreach ($updatedServices as $serviceName => $serviceConfig) {
-                $newServiceKey = $serviceConfig['key'];
-                unset($serviceConfig['key']);
-                $rootSettings['services']['value'][$serviceName] = $serviceConfig;
-                echo "Added service with suffix {$newServiceKey['suffix']} to root settings\n";
+            foreach ($updatedServices as $service) {
+                $newServiceKey = $service['key'];
+                $serviceConfig = $service['config'];
+                $newKey = $newServiceKey['prefix'] . " . '" . $newServiceKey['suffix'] . "'";
+                if (!isset($rootSettings['services']['value'][$newKey])) {
+                    $rootSettings['services']['value'][$newKey] = $serviceConfig;
+                    echo "Added service with suffix {$newServiceKey['suffix']} to root settings\n";
+                } else {
+                    echo "Service with suffix {$newServiceKey['suffix']} already exists in root settings, skipping\n";
+                }
             }
         } else {
             echo "No services found in .settings.php for $package\n";
@@ -337,6 +344,15 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
+    // Если есть перенаправление, удаляем папку lib/Src из vendor
+    if ($hasRedirect) {
+        $srcDir = $packageDir . '/lib/Src';
+        if (is_dir($srcDir)) {
+            echo "Removing lib/Src directory from $packageDir due to service redirect...\n";
+            removeDirectory($srcDir);
+        }
+    }
+
     // Удаляем пустые директории в $packageDir
     echo "Cleaning up empty directories in $packageDir...\n";
     removeEmptyDirectories($packageDir);
@@ -348,6 +364,7 @@ echo "Generating final .settings.php...\n";
 // Сохраняем только секцию services, остальное оставляем без изменений
 $rootSettingsFull = include $rootSettingsPath;
 $rootSettingsFull['services'] = $rootSettings['services'];
+
 
 // Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
 $existingContent = file_get_contents($rootSettingsPath);
@@ -361,7 +378,6 @@ if ($returnPos === false) {
     $beforeReturn = substr($existingContent, 0, $returnPos);
     $settingsContent = $beforeReturn;
 }
-
 
 // Генерируем читаемый PHP-код для массива
 $settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
@@ -383,9 +399,9 @@ function arrayToPhpCode($array, $indentLevel = 0) {
         $line = $indent . str_repeat('    ', 1);
 
         // Форматируем ключ
-        if (isset($value['key']) && is_array($value['key'])) {
+        if (is_string($key) && preg_match('/^\$moduleId \. \'([a-zA-Z0-9.]+)\'$/', $key, $matches)) {
             // Специальная обработка для ключей вида $moduleId . '...'
-            $line .= $value['key']['prefix'] . " . '" . $value['key']['suffix'] . "'";
+            $line .= "\$moduleId . '{$matches[1]}'";
         } elseif (is_string($key) && !is_numeric($key)) {
             $line .= "'$key'";
         } else {
@@ -396,10 +412,6 @@ function arrayToPhpCode($array, $indentLevel = 0) {
 
         // Форматируем значение
         if (is_array($value)) {
-            // Удаляем временный ключ 'key', если он есть
-            if (isset($value['key'])) {
-                unset($value['key']);
-            }
             // Специальная обработка для constructorParams
             if ($key === 'constructorParams' && count($value) === 1 && $value[0] === '$moduleId') {
                 $line .= "[\$moduleId]";
@@ -453,6 +465,28 @@ function removeEmptyDirectories(string $dir): void
         echo "Removing empty root directory: $dir\n";
         rmdir($dir);
     }
+}
+
+function removeDirectory(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        if ($item->isDir()) {
+            rmdir($item->getPathname());
+        } else {
+            unlink($item->getPathname());
+        }
+    }
+
+    rmdir($dir);
 }
 
 echo "Module namespace and variables updated for $moduleName\n";
