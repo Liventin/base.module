@@ -276,7 +276,12 @@ foreach ($packagesToProcess as $package) {
                 }
 
                 if (!$serviceExists) {
-                    $rootSettings['services']['value'][$newKey] = $serviceConfig;
+                    // Форматируем новый сервис в том виде, в котором он должен быть в .settings.php
+                    $formattedService = [
+                        'className' => $serviceConfig['className'],
+                        'constructorParams' => ['$moduleId'],
+                    ];
+                    $rootSettings['services']['value'][$newKey] = $formattedService;
                     echo "Added service with suffix $suffix to root settings\n";
                     $servicesUpdated = true; // Устанавливаем флаг, что были изменения
                 }
@@ -357,7 +362,6 @@ foreach ($packagesToProcess as $package) {
             echo "Skipping file in vendor/: $filePath\n";
             continue;
         }
-
 
         if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
             echo "Processing moved file: $filePath\n";
@@ -441,6 +445,7 @@ function arrayToPhpCode($array, $indentLevel = 0): string
 
         $line .= ' => ';
 
+
         // Форматируем значение
         if (is_array($value)) {
             // Специальная обработка для constructorParams
@@ -474,7 +479,6 @@ function removeEmptyDirectories(string $dir): void
     if (!is_dir($dir)) {
         return;
     }
-
 
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
