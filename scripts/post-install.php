@@ -135,13 +135,16 @@ foreach ($packagesToProcess as $package) {
 
     // Формируем excludePaths для текущего пакета
     $excludePaths = array_map(function ($path) use ($packageDir) {
-        return $packageDir . $path;
+        return rtrim($packageDir . $path, '/\\');
     }, $excludePathsBase);
 
     // Если есть перенаправление, исключаем папку Src/
     if ($hasRedirect) {
-        $excludePaths[] = $packageDir . '/Src';
+        $excludePaths[] = rtrim($packageDir . '/Src', '/\\');
     }
+
+    // Отладочный вывод excludePaths
+    echo "Exclude paths for $package: " . json_encode($excludePaths) . "\n";
 
     // Массив для хранения путей к перенесённым файлам
     $movedFiles = [];
@@ -154,10 +157,13 @@ foreach ($packagesToProcess as $package) {
 
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
+        $normalizedItemPath = rtrim(str_replace('\\', '/', $itemPath), '/');
         $shouldSkip = false;
         foreach ($excludePaths as $excludePath) {
-            if (str_starts_with($itemPath, $excludePath)) {
+            $normalizedExcludePath = rtrim(str_replace('\\', '/', $excludePath), '/');
+            if (stripos($normalizedItemPath, $normalizedExcludePath) === 0) {
                 $shouldSkip = true;
+                echo "Skipping path: $itemPath (matches $excludePath)\n";
                 break;
             }
         }
@@ -235,40 +241,57 @@ foreach ($packagesToProcess as $package) {
         if (file_exists($packageSettingsPath)) {
             echo "Processing .settings.php for service redirection in $package...\n";
             $packageSettings = include $packageSettingsPath;
-            if (isset($packageSettings['service'])) {
+            if (isset($packageSettings['services']['value'])) {
                 $rootSettingsPath = $moduleDir . '/.settings.php';
                 if (!file_exists($rootSettingsPath)) {
                     echo "Root .settings.php not found at $rootSettingsPath, creating new...\n";
-                    $rootSettings = ['service' => []];
+                    $rootSettings = [
+                        'services' => [
+                            'value' => [],
+                            'readonly' => true,
+                        ],
+                    ];
                 } else {
                     $rootSettings = include $rootSettingsPath;
-                    if (!isset($rootSettings['service'])) {
-                        $rootSettings['service'] = [];
+                    if (!isset($rootSettings['services'])) {
+                        $rootSettings['services'] = [
+                            'value' => [],
+                            'readonly' => true,
+                        ];
+                    } elseif (!isset($rootSettings['services']['value'])) {
+                        $rootSettings['services']['value'] = [];
                     }
                 }
 
                 // Обновляем namespace в настройках сервисов
                 $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
-                $packageServices = $packageSettings['service'];
+                $packageServices = $packageSettings['services']['value'];
+                $updatedServices = [];
                 foreach ($packageServices as $serviceName => $serviceConfig) {
-                    if (isset($serviceConfig['class'])) {
-                        $packageServices[$serviceName]['class'] = str_replace(
+                    // Формируем новый ключ сервиса с учётом текущего moduleId
+                    $newServiceName = $moduleName . substr($serviceName, strpos($serviceName, '.'));
+                    if (isset($serviceConfig['className'])) {
+                        $updatedServices[$newServiceName] = $serviceConfig;
+                        $updatedServices[$newServiceName]['className'] = str_replace(
                             'Base\\Module',
                             $redirectNamespacePrefix,
-                            $serviceConfig['class']
+                            $serviceConfig['className']
                         );
                     }
                 }
 
-                // Добавляем только новые ключи в секцию service
-                foreach ($packageServices as $serviceName => $serviceConfig) {
-                    if (!isset($rootSettings['service'][$serviceName])) {
-                        $rootSettings['service'][$serviceName] = $serviceConfig;
+                // Добавляем только новые ключи в секцию services['value']
+                foreach ($updatedServices as $serviceName => $serviceConfig) {
+                    if (!isset($rootSettings['services']['value'][$serviceName])) {
+                        $rootSettings['services']['value'][$serviceName] = $serviceConfig;
                     }
                 }
 
                 // Сохраняем обновлённый .settings.php
-                $settingsContent = "<?php\nreturn " . var_export($rootSettings, true) . ";\n";
+                $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
+                $settingsContent .= "use " . $redirectNamespacePrefix . "\\Src\\Handlers\\EventHandler;\n\n";
+                $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
+                $settingsContent .= "return " . var_export($rootSettings, true) . ";\n";
                 file_put_contents($rootSettingsPath, $settingsContent);
                 echo "Updated .settings.php with service settings from $package\n";
             }
