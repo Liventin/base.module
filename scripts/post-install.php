@@ -168,91 +168,7 @@ foreach ($packagesToProcess as $package) {
     // Отладочный вывод excludePaths
     echo "Exclude paths for $package: " . json_encode($excludePaths) . "\n";
 
-    // Массив для хранения путей к перенесённым файлам
-    $movedFiles = [];
-
-    echo "Moving files from $packageDir to $moduleDir...\n";
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST
-    );
-
-    foreach ($iterator as $item) {
-        $itemPath = $item->getPathname();
-        $normalizedItemPath = rtrim(str_replace('\\', '/', $itemPath), '/');
-        $shouldSkip = false;
-        foreach ($excludePaths as $excludePath) {
-            $normalizedExcludePath = rtrim(str_replace('\\', '/', $excludePath), '/');
-            if (stripos($normalizedItemPath, $normalizedExcludePath) === 0) {
-                $shouldSkip = true;
-                echo "Skipping path: $itemPath (matches $excludePath)\n";
-                break;
-            }
-        }
-        if ($shouldSkip) {
-            continue;
-        }
-
-        $relativePath = substr($itemPath, strlen($packageDir) + 1);
-        $targetPath = $moduleDir . '/' . $relativePath;
-
-        if ($item->isDir()) {
-            if (!is_dir($targetPath)) {
-                if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
-                    throw new RuntimeException(sprintf('Directory "%s" was not created', $targetPath));
-                }
-                echo "Created directory: $targetPath\n";
-            }
-        } else {
-            $isProtected = false;
-            $fileName = basename($itemPath);
-            foreach ($protectedPaths as $protectedPath => $protectedFileName) {
-                if ($relativePath === $protectedPath && $fileName === $protectedFileName) {
-                    $isProtected = true;
-                    break;
-                }
-            }
-
-
-            if ($isProtected) {
-                if (file_exists($targetPath)) {
-                    echo "File $fileName at $relativePath already exists at $targetPath, removing from source: $itemPath\n";
-                    unlink($itemPath);
-                } else {
-                    echo "Moving protected file: $itemPath to $targetPath\n";
-                    rename($itemPath, $targetPath);
-                    $movedFiles[] = $targetPath;
-                }
-            } else {
-                echo "Moving file: $itemPath to $targetPath\n";
-                rename($itemPath, $targetPath);
-                $movedFiles[] = $targetPath;
-            }
-        }
-    }
-
-    // Применяем замены namespace и других переменных только для перенесённых файлов, исключая папку vendor/
-    echo "Applying replacements in moved PHP files (excluding vendor/) for $package...\n";
-    foreach ($movedFiles as $filePath) {
-        // Пропускаем файлы, которые находятся в $moduleDir/vendor/
-        if (str_starts_with($filePath, $vendorPath)) {
-            echo "Skipping file in vendor/: $filePath\n";
-            continue;
-        }
-
-        if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
-            echo "Processing moved file: $filePath\n";
-            $content = file_get_contents($filePath);
-            $newContent = str_replace(
-                array_keys($replacements),
-                array_values($replacements),
-                $content
-            );
-            file_put_contents($filePath, $newContent);
-        }
-    }
-
-    // Если есть .settings.php в пакете, добавляем его сервисы в $rootSettings
+    // Сначала обрабатываем .settings.php, чтобы извлечь сервисы перед удалением файла
     $packageSettingsPath = $packageDir . '/.settings.php';
     if (file_exists($packageSettingsPath)) {
         echo "Processing .settings.php for $package...\n";
@@ -299,6 +215,88 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
+    // Теперь перемещаем файлы
+    $movedFiles = [];
+    echo "Moving files from $packageDir to $moduleDir...\n";
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $itemPath = $item->getPathname();
+        $normalizedItemPath = rtrim(str_replace('\\', '/', $itemPath), '/');
+        $shouldSkip = false;
+        foreach ($excludePaths as $excludePath) {
+            $normalizedExcludePath = rtrim(str_replace('\\', '/', $excludePath), '/');
+            if (stripos($normalizedItemPath, $normalizedExcludePath) === 0) {
+                $shouldSkip = true;
+                echo "Skipping path: $itemPath (matches $excludePath)\n";
+                break;
+            }
+        }
+        if ($shouldSkip) {
+            continue;
+        }
+
+        $relativePath = substr($itemPath, strlen($packageDir) + 1);
+        $targetPath = $moduleDir . '/' . $relativePath;
+
+        if ($item->isDir()) {
+            if (!is_dir($targetPath)) {
+                if (!mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+                    throw new RuntimeException(sprintf('Directory "%s" was not created', $targetPath));
+                }
+                echo "Created directory: $targetPath\n";
+            }
+        } else {
+            $isProtected = false;
+            $fileName = basename($itemPath);
+            foreach ($protectedPaths as $protectedPath => $protectedFileName) {
+                if ($relativePath === $protectedPath && $fileName === $protectedFileName) {
+                    $isProtected = true;
+                    break;
+                }
+            }
+
+            if ($isProtected) {
+                if (file_exists($targetPath)) {
+                    echo "File $fileName at $relativePath already exists at $targetPath, removing from source: $itemPath\n";
+                    unlink($itemPath);
+                } else {
+                    echo "Moving protected file: $itemPath to $targetPath\n";
+                    rename($itemPath, $targetPath);
+                    $movedFiles[] = $targetPath;
+                }
+            } else {
+                echo "Moving file: $itemPath to $targetPath\n";
+                rename($itemPath, $targetPath);
+                $movedFiles[] = $targetPath;
+            }
+        }
+    }
+
+    // Применяем замены namespace и других переменных только для перенесённых файлов, исключая папку vendor/
+    echo "Applying replacements in moved PHP files (excluding vendor/) for $package...\n";
+    foreach ($movedFiles as $filePath) {
+        // Пропускаем файлы, которые находятся в $moduleDir/vendor/
+        if (str_starts_with($filePath, $vendorPath)) {
+            echo "Skipping file in vendor/: $filePath\n";
+            continue;
+        }
+
+        if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
+            echo "Processing moved file: $filePath\n";
+            $content = file_get_contents($filePath);
+            $newContent = str_replace(
+                array_keys($replacements),
+                array_values($replacements),
+                $content
+            );
+            file_put_contents($filePath, $newContent);
+        }
+    }
+
     // Удаляем пустые директории в $packageDir
     echo "Cleaning up empty directories in $packageDir...\n";
     removeEmptyDirectories($packageDir);
@@ -310,6 +308,7 @@ echo "Generating final .settings.php...\n";
 // Сохраняем только секцию services, остальное оставляем без изменений
 $rootSettingsFull = include $rootSettingsPath;
 $rootSettingsFull['services'] = $rootSettings['services'];
+
 
 // Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
 $existingContent = file_get_contents($rootSettingsPath);
