@@ -127,7 +127,16 @@ if (!file_exists($rootSettingsPath)) {
         ],
     ];
 } else {
-    $rootSettings = include $rootSettingsPath;
+    echo "Loading existing root .settings.php...\n";
+    try {
+        $rootSettings = include $rootSettingsPath;
+        if (!is_array($rootSettings)) {
+            throw new RuntimeException("Root .settings.php did not return an array.");
+        }
+    } catch (Throwable $e) {
+        echo "Failed to load root .settings.php: " . $e->getMessage() . "\n";
+        exit(1);
+    }
     if (!isset($rootSettings['services'])) {
         $rootSettings['services'] = [
             'value' => [],
@@ -172,8 +181,24 @@ foreach ($packagesToProcess as $package) {
     $packageSettingsPath = $packageDir . '/.settings.php';
     if (file_exists($packageSettingsPath)) {
         echo "Processing .settings.php for $package...\n";
-        $packageSettings = include $packageSettingsPath;
+        // Убедимся, что константа определена, чтобы избежать die
+        if (!defined('B_PROLOG_INCLUDED')) {
+            define('B_PROLOG_INCLUDED', true);
+        }
+        try {
+            $packageSettings = include $packageSettingsPath;
+            if (!is_array($packageSettings)) {
+                throw new RuntimeException("Package .settings.php did not return an array.");
+            }
+            echo "Successfully loaded .settings.php for $package\n";
+        } catch (Throwable $e) {
+            echo "Failed to load .settings.php for $package: " . $e->getMessage() . "\n";
+            continue;
+        }
+
+
         if (isset($packageSettings['services']['value'])) {
+            echo "Found services in .settings.php for $package\n";
             $packageServices = $packageSettings['services']['value'];
             $updatedServices = [];
             foreach ($packageServices as $serviceName => $serviceConfig) {
@@ -205,14 +230,20 @@ foreach ($packagesToProcess as $package) {
                 }
             }
 
-
             // Добавляем только новые ключи в секцию services['value']
             foreach ($updatedServices as $serviceName => $serviceConfig) {
                 if (!isset($rootSettings['services']['value'][$serviceName])) {
                     $rootSettings['services']['value'][$serviceName] = $serviceConfig;
+                    echo "Added service $serviceName to root settings\n";
+                } else {
+                    echo "Service $serviceName already exists in root settings, skipping\n";
                 }
             }
+        } else {
+            echo "No services found in .settings.php for $package\n";
         }
+    } else {
+        echo "No .settings.php found for $package at $packageSettingsPath\n";
     }
 
     // Теперь перемещаем файлы
@@ -241,6 +272,7 @@ foreach ($packagesToProcess as $package) {
 
         $relativePath = substr($itemPath, strlen($packageDir) + 1);
         $targetPath = $moduleDir . '/' . $relativePath;
+
 
         if ($item->isDir()) {
             if (!is_dir($targetPath)) {
@@ -309,7 +341,6 @@ echo "Generating final .settings.php...\n";
 $rootSettingsFull = include $rootSettingsPath;
 $rootSettingsFull['services'] = $rootSettings['services'];
 
-
 // Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
 $existingContent = file_get_contents($rootSettingsPath);
 $returnPos = strpos($existingContent, 'return ');
@@ -339,6 +370,7 @@ function removeEmptyDirectories(string $dir): void
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
     );
+
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
