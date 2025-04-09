@@ -252,17 +252,29 @@ foreach ($packagesToProcess as $package) {
                 }
             }
 
-
-            // Добавляем только новые ключи в секцию services['value']
+            // Добавляем только новые сервисы в секцию services['value']
             foreach ($updatedServices as $service) {
                 $newServiceKey = $service['key'];
                 $serviceConfig = $service['config'];
                 $newKey = $newServiceKey['prefix'] . " . '" . $newServiceKey['suffix'] . "'";
-                if (!isset($rootSettings['services']['value'][$newKey])) {
+                $suffix = $newServiceKey['suffix'];
+
+
+                // Проверяем, существует ли сервис с таким суффиксом в $rootSettings
+                $serviceExists = false;
+                foreach ($rootSettings['services']['value'] as $existingKey => $existingConfig) {
+                    if (is_string($existingKey) && preg_match('/^\$moduleId \. \'([a-zA-Z0-9.]+)\'$/', $existingKey, $matches)) {
+                        if ($matches[1] === $suffix) {
+                            $serviceExists = true;
+                            echo "Service with suffix $suffix already exists in root settings, skipping\n";
+                            break;
+                        }
+                    }
+                }
+
+                if (!$serviceExists) {
                     $rootSettings['services']['value'][$newKey] = $serviceConfig;
-                    echo "Added service with suffix {$newServiceKey['suffix']} to root settings\n";
-                } else {
-                    echo "Service with suffix {$newServiceKey['suffix']} already exists in root settings, skipping\n";
+                    echo "Added service with suffix $suffix to root settings\n";
                 }
             }
         } else {
