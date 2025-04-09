@@ -40,7 +40,7 @@ echo "Namespace prefix: $namespacePrefix\n";
 
 // Читаем параметр service-redirect из composer.json
 $serviceRedirects = $composerData['extra']['service-redirect'] ?? [];
-echo "Service redirects: " . json_encode($serviceRedirects) . "\n";
+echo "Service redirects: " . json_encode($serviceRedirects, JSON_THROW_ON_ERROR) . "\n";
 
 // Определяем директорию vendor/
 $vendorDir = dirname(__DIR__, 3);
@@ -165,7 +165,7 @@ foreach ($packagesToProcess as $package) {
     }
 
     // Формируем excludePaths для текущего пакета
-    $excludePaths = array_map(function ($path) use ($packageDir) {
+    $excludePaths = array_map(static function ($path) use ($packageDir) {
         return rtrim($packageDir . $path, '/\\');
     }, $excludePathsBase);
 
@@ -175,7 +175,7 @@ foreach ($packagesToProcess as $package) {
     }
 
     // Отладочный вывод excludePaths
-    echo "Exclude paths for $package: " . json_encode($excludePaths) . "\n";
+    echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
 
     // Сначала обрабатываем .settings.php, чтобы извлечь сервисы перед удалением файла
     $packageSettingsPath = $packageDir . '/.settings.php';
@@ -223,22 +223,34 @@ foreach ($packagesToProcess as $package) {
                         // Обновляем namespace для перенаправленного пакета
                         $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
                         $className = $serviceConfig['className'];
+                        echo "Original className for $serviceName (redirected): $className\n";
                         $className = str_replace('::class', '', $className);
                         $lastSlashPos = strrpos($className, '\\');
                         if ($lastSlashPos !== false) {
                             $classNamespace = substr($className, 0, $lastSlashPos);
                             $classOnly = substr($className, $lastSlashPos + 1);
                             $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
-                            $updatedServices[count($updatedServices) - 1]['config']['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
+                            $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
+                            $updatedServices[count($updatedServices) - 1]['config']['className'] = $newClassName;
+                            echo "Updated className for $serviceName (redirected): $newClassName\n";
+                        } else {
+                            echo "Invalid className format for $serviceName: $className, skipping\n";
+                            continue;
                         }
                     } else {
                         // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
                         $className = $serviceConfig['className'];
+                        echo "Original className for $serviceName: $className\n";
                         $className = str_replace(['::class', 'Base\\Module'], ['', $namespacePrefix], $className);
-                        $updatedServices[count($updatedServices) - 1]['config']['className'] = $className . '::class';
+                        $newClassName = $className . '::class';
+                        $updatedServices[count($updatedServices) - 1]['config']['className'] = $newClassName;
+                        echo "Updated className for $serviceName: $newClassName\n";
                     }
+                } else {
+                    echo "No className found for service $serviceName, skipping\n";
                 }
             }
+
 
             // Добавляем только новые ключи в секцию services['value']
             foreach ($updatedServices as $service) {
@@ -266,7 +278,6 @@ foreach ($packagesToProcess as $package) {
         new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::SELF_FIRST
     );
-
 
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
@@ -330,6 +341,7 @@ foreach ($packagesToProcess as $package) {
             continue;
         }
 
+
         if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
             echo "Processing moved file: $filePath\n";
             $content = file_get_contents($filePath);
@@ -363,7 +375,6 @@ echo "Generating final .settings.php...\n";
 $rootSettingsFull = include $rootSettingsPath;
 $rootSettingsFull['services'] = $rootSettings['services'];
 
-
 // Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
 $existingContent = file_get_contents($rootSettingsPath);
 $returnPos = strpos($existingContent, 'return ');
@@ -382,7 +393,8 @@ $settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
 file_put_contents($rootSettingsPath, $settingsContent);
 echo "Updated .settings.php with combined service settings\n";
 
-function arrayToPhpCode($array, $indentLevel = 0) {
+function arrayToPhpCode($array, $indentLevel = 0): string
+{
     $indent = str_repeat('    ', $indentLevel);
     $lines = [];
 
@@ -390,7 +402,7 @@ function arrayToPhpCode($array, $indentLevel = 0) {
         return '[]';
     }
 
-    $isAssoc = array_keys($array) !== range(0, count($array) - 1);
+    $isAssoc = !array_is_list($array);
     $lines[] = '[';
 
     foreach ($array as $key => $value) {
@@ -399,7 +411,7 @@ function arrayToPhpCode($array, $indentLevel = 0) {
         // Форматируем ключ
         if (is_string($key) && preg_match('/^\$moduleId \. \'([a-zA-Z0-9.]+)\'$/', $key, $matches)) {
             // Специальная обработка для ключей вида $moduleId . '...'
-            $line .= "\$moduleId . '{$matches[1]}'";
+            $line .= "\$moduleId . '$matches[1]'";
         } elseif (is_string($key) && !is_numeric($key)) {
             $line .= "'$key'";
         } else {
@@ -416,7 +428,7 @@ function arrayToPhpCode($array, $indentLevel = 0) {
             } else {
                 $line .= arrayToPhpCode($value, $indentLevel + 1);
             }
-        } elseif (is_string($value) && $value === '$moduleId') {
+        } elseif ($value === '$moduleId') {
             $line .= '$moduleId';
         } elseif (is_string($value) && preg_match('/^[A-Za-z0-9\\\\]+(::class)?$/', $value)) {
             // Для строк, которые выглядят как имена классов
@@ -446,6 +458,7 @@ function removeEmptyDirectories(string $dir): void
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
     );
+
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
@@ -488,4 +501,4 @@ function removeDirectory(string $dir): void
 }
 
 echo "Module namespace and variables updated for $moduleName\n";
-error_log("Post-install script completed for $moduleName", 0);
+error_log("Post-install script completed for $moduleName");
