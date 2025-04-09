@@ -116,6 +116,28 @@ $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 $vendorPath = $moduleDir . '/vendor/';
 
 
+// Инициализируем $rootSettings для накопления настроек
+$rootSettingsPath = $moduleDir . '/.settings.php';
+if (!file_exists($rootSettingsPath)) {
+    echo "Root .settings.php not found at $rootSettingsPath, creating new...\n";
+    $rootSettings = [
+        'services' => [
+            'value' => [],
+            'readonly' => true,
+        ],
+    ];
+} else {
+    $rootSettings = include $rootSettingsPath;
+    if (!isset($rootSettings['services'])) {
+        $rootSettings['services'] = [
+            'value' => [],
+            'readonly' => true,
+        ];
+    } elseif (!isset($rootSettings['services']['value'])) {
+        $rootSettings['services']['value'] = [];
+    }
+}
+
 // Обрабатываем каждый пакет
 foreach ($packagesToProcess as $package) {
     $packageDir = $vendorDir . '/' . $package;
@@ -138,9 +160,9 @@ foreach ($packagesToProcess as $package) {
         return rtrim($packageDir . $path, '/\\');
     }, $excludePathsBase);
 
-    // Если есть перенаправление, исключаем папку Src/
+    // Если есть перенаправление, исключаем папку lib/Src/
     if ($hasRedirect) {
-        $excludePaths[] = rtrim($packageDir . '/Src', '/\\');
+        $excludePaths[] = rtrim($packageDir . '/lib/Src', '/\\');
     }
 
     // Отладочный вывод excludePaths
@@ -191,6 +213,7 @@ foreach ($packagesToProcess as $package) {
                 }
             }
 
+
             if ($isProtected) {
                 if (file_exists($targetPath)) {
                     echo "File $fileName at $relativePath already exists at $targetPath, removing from source: $itemPath\n";
@@ -217,7 +240,6 @@ foreach ($packagesToProcess as $package) {
             continue;
         }
 
-
         if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
             echo "Processing moved file: $filePath\n";
             $content = file_get_contents($filePath);
@@ -226,74 +248,53 @@ foreach ($packagesToProcess as $package) {
                 array_values($replacements),
                 $content
             );
-            // Если есть перенаправление, заменяем namespace на целевой модуль
-            if ($hasRedirect) {
-                $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
-                $newContent = str_replace($namespacePrefix, $redirectNamespacePrefix, $newContent);
-            }
             file_put_contents($filePath, $newContent);
         }
     }
 
-    // Если есть перенаправление, обновляем .settings.php в корне
-    if ($hasRedirect) {
-        $packageSettingsPath = $packageDir . '/.settings.php';
-        if (file_exists($packageSettingsPath)) {
-            echo "Processing .settings.php for service redirection in $package...\n";
-            $packageSettings = include $packageSettingsPath;
-            if (isset($packageSettings['services']['value'])) {
-                $rootSettingsPath = $moduleDir . '/.settings.php';
-                if (!file_exists($rootSettingsPath)) {
-                    echo "Root .settings.php not found at $rootSettingsPath, creating new...\n";
-                    $rootSettings = [
-                        'services' => [
-                            'value' => [],
-                            'readonly' => true,
-                        ],
-                    ];
-                } else {
-                    $rootSettings = include $rootSettingsPath;
-                    if (!isset($rootSettings['services'])) {
-                        $rootSettings['services'] = [
-                            'value' => [],
-                            'readonly' => true,
-                        ];
-                    } elseif (!isset($rootSettings['services']['value'])) {
-                        $rootSettings['services']['value'] = [];
-                    }
-                }
-
-                // Обновляем namespace в настройках сервисов
-                $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
-                $packageServices = $packageSettings['services']['value'];
-                $updatedServices = [];
-                foreach ($packageServices as $serviceName => $serviceConfig) {
-                    // Формируем новый ключ сервиса с учётом текущего moduleId
-                    $newServiceName = $moduleName . substr($serviceName, strpos($serviceName, '.'));
-                    if (isset($serviceConfig['className'])) {
-                        $updatedServices[$newServiceName] = $serviceConfig;
+    // Если есть .settings.php в пакете, добавляем его сервисы в $rootSettings
+    $packageSettingsPath = $packageDir . '/.settings.php';
+    if (file_exists($packageSettingsPath)) {
+        echo "Processing .settings.php for $package...\n";
+        $packageSettings = include $packageSettingsPath;
+        if (isset($packageSettings['services']['value'])) {
+            $packageServices = $packageSettings['services']['value'];
+            $updatedServices = [];
+            foreach ($packageServices as $serviceName => $serviceConfig) {
+                // Извлекаем суффикс ключа (например, '.class.list')
+                $suffix = substr($serviceName, strpos($serviceName, '.'));
+                $newServiceName = "\$moduleId . '$suffix'";
+                if (isset($serviceConfig['className'])) {
+                    $updatedServices[$newServiceName] = $serviceConfig;
+                    if ($hasRedirect) {
+                        // Обновляем namespace для перенаправленного пакета
+                        $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
+                        $className = $serviceConfig['className'];
+                        $className = str_replace('::class', '', $className);
+                        $lastSlashPos = strrpos($className, '\\');
+                        if ($lastSlashPos !== false) {
+                            $classNamespace = substr($className, 0, $lastSlashPos);
+                            $classOnly = substr($className, $lastSlashPos + 1);
+                            $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
+                            $updatedServices[$newServiceName]['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
+                        }
+                    } else {
+                        // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
                         $updatedServices[$newServiceName]['className'] = str_replace(
                             'Base\\Module',
-                            $redirectNamespacePrefix,
+                            $namespacePrefix,
                             $serviceConfig['className']
                         );
                     }
                 }
+            }
 
-                // Добавляем только новые ключи в секцию services['value']
-                foreach ($updatedServices as $serviceName => $serviceConfig) {
-                    if (!isset($rootSettings['services']['value'][$serviceName])) {
-                        $rootSettings['services']['value'][$serviceName] = $serviceConfig;
-                    }
+
+            // Добавляем только новые ключи в секцию services['value']
+            foreach ($updatedServices as $serviceName => $serviceConfig) {
+                if (!isset($rootSettings['services']['value'][$serviceName])) {
+                    $rootSettings['services']['value'][$serviceName] = $serviceConfig;
                 }
-
-                // Сохраняем обновлённый .settings.php
-                $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
-                $settingsContent .= "use " . $redirectNamespacePrefix . "\\Src\\Handlers\\EventHandler;\n\n";
-                $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
-                $settingsContent .= "return " . var_export($rootSettings, true) . ";\n";
-                file_put_contents($rootSettingsPath, $settingsContent);
-                echo "Updated .settings.php with service settings from $package\n";
             }
         }
     }
@@ -302,6 +303,32 @@ foreach ($packagesToProcess as $package) {
     echo "Cleaning up empty directories in $packageDir...\n";
     removeEmptyDirectories($packageDir);
 }
+
+// После обработки всех пакетов обновляем .settings.php
+echo "Generating final .settings.php...\n";
+
+// Сохраняем только секцию services, остальное оставляем без изменений
+$rootSettingsFull = include $rootSettingsPath;
+$rootSettingsFull['services'] = $rootSettings['services'];
+
+// Читаем существующий файл как текст, чтобы сохранить use и другие инструкции
+$existingContent = file_get_contents($rootSettingsPath);
+$returnPos = strpos($existingContent, 'return ');
+if ($returnPos === false) {
+    // Если return не найден, создаём файл заново
+    $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
+    $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
+    $settingsContent .= "return " . var_export($rootSettingsFull, true) . ";\n";
+} else {
+    // Извлекаем всё до return
+    $beforeReturn = substr($existingContent, 0, $returnPos);
+    // Добавляем обновлённый return
+    $settingsContent = $beforeReturn;
+    $settingsContent .= "return " . var_export($rootSettingsFull, true) . ";\n";
+}
+
+file_put_contents($rootSettingsPath, $settingsContent);
+echo "Updated .settings.php with combined service settings\n";
 
 function removeEmptyDirectories(string $dir): void
 {
