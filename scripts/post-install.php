@@ -202,18 +202,21 @@ foreach ($packagesToProcess as $package) {
             $packageServices = $packageSettings['services']['value'];
             $updatedServices = [];
             foreach ($packageServices as $serviceName => $serviceConfig) {
-                // Извлекаем суффикс ключа, начиная с последней точки
-                $lastDotPos = strrpos($serviceName, '.');
-                if ($lastDotPos === false) {
+                // Извлекаем суффикс ключа, начиная с третьей точки (после base.module или base.module.handlers)
+                $parts = explode('.', $serviceName);
+                if (count($parts) < 3) {
                     echo "Invalid service name format: $serviceName, skipping\n";
                     continue;
                 }
-                $suffix = substr($serviceName, $lastDotPos);
-                $newServiceName = "\$moduleId . '$suffix'";
+                // Для base.module.class.list -> class.list
+                // Для base.module.handlers.handlers.service -> handlers.service
+                $suffix = implode('.', array_slice($parts, -2));
+                $newServiceKey = ['prefix' => '$moduleId', 'suffix' => $suffix];
                 if (isset($serviceConfig['className'])) {
-                    $updatedServices[$newServiceName] = $serviceConfig;
+                    $updatedServices[$serviceName] = $serviceConfig;
+                    $updatedServices[$serviceName]['key'] = $newServiceKey;
                     // Обновляем constructorParams
-                    $updatedServices[$newServiceName]['constructorParams'] = ['$moduleId'];
+                    $updatedServices[$serviceName]['constructorParams'] = ['$moduleId'];
                     if ($hasRedirect) {
                         // Обновляем namespace для перенаправленного пакета
                         $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
@@ -224,11 +227,11 @@ foreach ($packagesToProcess as $package) {
                             $classNamespace = substr($className, 0, $lastSlashPos);
                             $classOnly = substr($className, $lastSlashPos + 1);
                             $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
-                            $updatedServices[$newServiceName]['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
+                            $updatedServices[$serviceName]['className'] = $updatedNamespace . '\\' . $classOnly . '::class';
                         }
                     } else {
                         // Для неперенаправленных пакетов просто обновляем namespace на текущий модуль
-                        $updatedServices[$newServiceName]['className'] = str_replace(
+                        $updatedServices[$serviceName]['className'] = str_replace(
                             'Base\\Module',
                             $namespacePrefix,
                             $serviceConfig['className']
@@ -239,12 +242,10 @@ foreach ($packagesToProcess as $package) {
 
             // Добавляем только новые ключи в секцию services['value']
             foreach ($updatedServices as $serviceName => $serviceConfig) {
-                if (!isset($rootSettings['services']['value'][$serviceName])) {
-                    $rootSettings['services']['value'][$serviceName] = $serviceConfig;
-                    echo "Added service $serviceName to root settings\n";
-                } else {
-                    echo "Service $serviceName already exists in root settings, skipping\n";
-                }
+                $newServiceKey = $serviceConfig['key'];
+                unset($serviceConfig['key']);
+                $rootSettings['services']['value'][$serviceName] = $serviceConfig;
+                echo "Added service with suffix {$newServiceKey['suffix']} to root settings\n";
             }
         } else {
             echo "No services found in .settings.php for $package\n";
@@ -261,6 +262,7 @@ foreach ($packagesToProcess as $package) {
         RecursiveIteratorIterator::SELF_FIRST
     );
 
+
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
         $normalizedItemPath = rtrim(str_replace('\\', '/', $itemPath), '/');
@@ -276,7 +278,6 @@ foreach ($packagesToProcess as $package) {
         if ($shouldSkip) {
             continue;
         }
-
 
         $relativePath = substr($itemPath, strlen($packageDir) + 1);
         $targetPath = $moduleDir . '/' . $relativePath;
@@ -361,6 +362,7 @@ if ($returnPos === false) {
     $settingsContent = $beforeReturn;
 }
 
+
 // Генерируем читаемый PHP-код для массива
 $settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
 file_put_contents($rootSettingsPath, $settingsContent);
@@ -380,11 +382,10 @@ function arrayToPhpCode($array, $indentLevel = 0) {
     foreach ($array as $key => $value) {
         $line = $indent . str_repeat('    ', 1);
 
-
         // Форматируем ключ
-        if (is_string($key) && preg_match('/^\$moduleId \. \'\\\.([a-zA-Z0-9.]+)\'$/', $key, $matches)) {
+        if (isset($value['key']) && is_array($value['key'])) {
             // Специальная обработка для ключей вида $moduleId . '...'
-            $line .= $key;
+            $line .= $value['key']['prefix'] . " . '" . $value['key']['suffix'] . "'";
         } elseif (is_string($key) && !is_numeric($key)) {
             $line .= "'$key'";
         } else {
@@ -395,7 +396,16 @@ function arrayToPhpCode($array, $indentLevel = 0) {
 
         // Форматируем значение
         if (is_array($value)) {
-            $line .= arrayToPhpCode($value, $indentLevel + 1);
+            // Удаляем временный ключ 'key', если он есть
+            if (isset($value['key'])) {
+                unset($value['key']);
+            }
+            // Специальная обработка для constructorParams
+            if ($key === 'constructorParams' && count($value) === 1 && $value[0] === '$moduleId') {
+                $line .= "[\$moduleId]";
+            } else {
+                $line .= arrayToPhpCode($value, $indentLevel + 1);
+            }
         } elseif (is_string($value) && $value === '$moduleId') {
             $line .= '$moduleId';
         } elseif (is_string($value) && preg_match('/^[A-Za-z0-9\\\\]+(::class)?$/', $value)) {
