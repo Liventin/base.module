@@ -118,6 +118,11 @@ $vendorPath = $moduleDir . '/vendor/';
 
 // Инициализируем $rootSettings для накопления настроек
 $rootSettingsPath = $moduleDir . '/.settings.php';
+// Убедимся, что константа определена, чтобы избежать die
+if (!defined('B_PROLOG_INCLUDED')) {
+    define('B_PROLOG_INCLUDED', true);
+}
+
 if (!file_exists($rootSettingsPath)) {
     echo "Root .settings.php not found at $rootSettingsPath, creating new...\n";
     $rootSettings = [
@@ -181,10 +186,6 @@ foreach ($packagesToProcess as $package) {
     $packageSettingsPath = $packageDir . '/.settings.php';
     if (file_exists($packageSettingsPath)) {
         echo "Processing .settings.php for $package...\n";
-        // Убедимся, что константа определена, чтобы избежать die
-        if (!defined('B_PROLOG_INCLUDED')) {
-            define('B_PROLOG_INCLUDED', true);
-        }
         try {
             $packageSettings = include $packageSettingsPath;
             if (!is_array($packageSettings)) {
