@@ -202,11 +202,18 @@ foreach ($packagesToProcess as $package) {
             $packageServices = $packageSettings['services']['value'];
             $updatedServices = [];
             foreach ($packageServices as $serviceName => $serviceConfig) {
-                // Извлекаем суффикс ключа (например, '.class.list')
-                $suffix = substr($serviceName, strpos($serviceName, '.'));
+                // Извлекаем суффикс ключа, начиная с последней точки
+                $lastDotPos = strrpos($serviceName, '.');
+                if ($lastDotPos === false) {
+                    echo "Invalid service name format: $serviceName, skipping\n";
+                    continue;
+                }
+                $suffix = substr($serviceName, $lastDotPos);
                 $newServiceName = "\$moduleId . '$suffix'";
                 if (isset($serviceConfig['className'])) {
                     $updatedServices[$newServiceName] = $serviceConfig;
+                    // Обновляем constructorParams
+                    $updatedServices[$newServiceName]['constructorParams'] = ['$moduleId'];
                     if ($hasRedirect) {
                         // Обновляем namespace для перенаправленного пакета
                         $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
@@ -270,9 +277,9 @@ foreach ($packagesToProcess as $package) {
             continue;
         }
 
+
         $relativePath = substr($itemPath, strlen($packageDir) + 1);
         $targetPath = $moduleDir . '/' . $relativePath;
-
 
         if ($item->isDir()) {
             if (!is_dir($targetPath)) {
@@ -348,17 +355,66 @@ if ($returnPos === false) {
     // Если return не найден, создаём файл заново
     $settingsContent = "<?php\n\ndefined('B_PROLOG_INCLUDED') || die;\n\n";
     $settingsContent .= "\$moduleId = basename(__DIR__);\n\n";
-    $settingsContent .= "return " . var_export($rootSettingsFull, true) . ";\n";
 } else {
     // Извлекаем всё до return
     $beforeReturn = substr($existingContent, 0, $returnPos);
-    // Добавляем обновлённый return
     $settingsContent = $beforeReturn;
-    $settingsContent .= "return " . var_export($rootSettingsFull, true) . ";\n";
 }
 
+// Генерируем читаемый PHP-код для массива
+$settingsContent .= "return " . arrayToPhpCode($rootSettingsFull) . ";\n";
 file_put_contents($rootSettingsPath, $settingsContent);
 echo "Updated .settings.php with combined service settings\n";
+
+function arrayToPhpCode($array, $indentLevel = 0) {
+    $indent = str_repeat('    ', $indentLevel);
+    $lines = [];
+
+    if (empty($array)) {
+        return '[]';
+    }
+
+    $isAssoc = array_keys($array) !== range(0, count($array) - 1);
+    $lines[] = '[';
+
+    foreach ($array as $key => $value) {
+        $line = $indent . str_repeat('    ', 1);
+
+
+        // Форматируем ключ
+        if (is_string($key) && preg_match('/^\$moduleId \. \'\\\.([a-zA-Z0-9.]+)\'$/', $key, $matches)) {
+            // Специальная обработка для ключей вида $moduleId . '...'
+            $line .= $key;
+        } elseif (is_string($key) && !is_numeric($key)) {
+            $line .= "'$key'";
+        } else {
+            $line .= $key;
+        }
+
+        $line .= ' => ';
+
+        // Форматируем значение
+        if (is_array($value)) {
+            $line .= arrayToPhpCode($value, $indentLevel + 1);
+        } elseif (is_string($value) && $value === '$moduleId') {
+            $line .= '$moduleId';
+        } elseif (is_string($value) && preg_match('/^[A-Za-z0-9\\\\]+(::class)?$/', $value)) {
+            // Для строк, которые выглядят как имена классов
+            $line .= $value;
+        } elseif (is_string($value)) {
+            $line .= "'$value'";
+        } elseif (is_bool($value)) {
+            $line .= $value ? 'true' : 'false';
+        } else {
+            $line .= var_export($value, true);
+        }
+
+        $lines[] = $line . ',';
+    }
+
+    $lines[] = $indent . ']';
+    return implode("\n", $lines);
+}
 
 function removeEmptyDirectories(string $dir): void
 {
@@ -370,7 +426,6 @@ function removeEmptyDirectories(string $dir): void
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
     );
-
 
     foreach ($iterator as $item) {
         if ($item->isDir()) {
