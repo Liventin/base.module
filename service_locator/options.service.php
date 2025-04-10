@@ -4,8 +4,8 @@ defined('B_PROLOG_INCLUDED') || die;
 
 $moduleId = basename(__DIR__);
 return [
-    $moduleId . '.options.service' => [
+    'base.module.options.service' => [
         'className' => Base\Module\Src\Options\OptionsService::class,
-        'constructorParams' => [$moduleId],
+        'constructorParams' => ['base.module'],
     ],
 ];
