@@ -6,7 +6,7 @@ return [
     'base.module.class.list' => [
         'className' => Base\Module\Src\Tool\ClassList::class,
         'constructorParams' => [
-            'base.module'
+            'base.module',
         ],
     ],
 ];

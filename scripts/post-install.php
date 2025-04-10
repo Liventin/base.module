@@ -241,7 +241,7 @@ foreach ($packagesToProcess as $package) {
     }
     echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
 
-    // Перемещаем файлы (без service_locator)
+    // Перемещаем файлы (без service_locator, lib/Src копируется, если нет перенаправления)
     $movedFiles = [];
     echo "Moving files from $packageDir to $moduleDir...\n";
     $iterator = new RecursiveIteratorIterator(
@@ -261,7 +261,11 @@ foreach ($packagesToProcess as $package) {
         $targetPath = "$moduleDir/$relativePath";
 
         if ($item->isDir()) {
-            if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+            if (
+                !is_dir($targetPath) &&
+                !mkdir($targetPath, 0755, true) &&
+                !is_dir($targetPath)
+            ) {
                 throw new RuntimeException("Directory '$targetPath' was not created");
             }
             echo "Created directory: $targetPath\n";
@@ -311,8 +315,32 @@ foreach ($packagesToProcess as $package) {
                 "$packageServiceLocatorDir/class.list.php"
             ));
 
+    // Если нет перенаправления, удаляем файлы из service_locator модуля (кроме class.list.php)
+    if (!$hasRedirect && is_dir($targetServiceLocatorDir)) {
+        $iterator = new DirectoryIterator($targetServiceLocatorDir);
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
+                continue;
+            }
+            if ($fileInfo->getFilename() === 'class.list.php') {
+                continue;
+            }
+
+
+            $filePath = $fileInfo->getPathname();
+            unlink($filePath);
+            echo "Removed $filePath from module service_locator (no redirect)\n";
+        }
+        removeEmptyDirectories($targetServiceLocatorDir);
+    }
+
+    // Копируем файлы из service_locator пакета, если нужно
     if ($shouldProcessServiceLocator && is_dir($packageServiceLocatorDir)) {
-        if (!is_dir($targetServiceLocatorDir) && !mkdir($targetServiceLocatorDir, 0755, true) && !is_dir($targetServiceLocatorDir)) {
+        if (
+            !is_dir($targetServiceLocatorDir) &&
+            !mkdir($targetServiceLocatorDir, 0755, true) &&
+            !is_dir($targetServiceLocatorDir)
+        ) {
             throw new RuntimeException("Directory '$targetServiceLocatorDir' was not created");
         }
 
@@ -326,7 +354,6 @@ foreach ($packagesToProcess as $package) {
                 continue;
             }
 
-
             $sourceFile = $fileInfo->getPathname();
             $targetFile = "$targetServiceLocatorDir/{$fileInfo->getFilename()}";
             copy($sourceFile, $targetFile);
@@ -337,7 +364,13 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
-    // Удаляем lib/Src при перенаправлении
+    // Удаляем service_locator из пакета, если нет перенаправления
+    if (!$hasRedirect && is_dir($packageServiceLocatorDir)) {
+        echo "Removing service_locator directory from $packageDir (no redirect)...\n";
+        removeDirectory($packageServiceLocatorDir);
+    }
+
+    // Удаляем lib/Src из пакета, если есть перенаправление
     if ($hasRedirect) {
         $srcDir = "$packageDir/lib/Src";
         if (is_dir($srcDir)) {
@@ -346,9 +379,20 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
-    // Удаляем пустые директории
+    // Удаляем пустые директории в пакете
     echo "Cleaning up empty directories in $packageDir...\n";
     removeEmptyDirectories($packageDir);
+}
+
+// Сбрасываем кэш для текущего модуля
+$bitrixRoot = dirname($moduleDir, 2); // Предполагаем, что модуль находится в local/modules/
+$cacheDir = "service_locator/{$moduleName}";
+$cachePath = "$bitrixRoot/bitrix/cache/$cacheDir";
+if (is_dir($cachePath)) {
+    removeDirectory($cachePath);
+    echo "Cleared service locator cache for module $moduleName at $cachePath\n";
+} else {
+    echo "No cache to clear for module $moduleName at $cachePath\n";
 }
 
 echo "Module namespace and variables updated for $moduleName\n";
