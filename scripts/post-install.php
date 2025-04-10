@@ -447,8 +447,7 @@ foreach ($packagesToProcess as $package) {
 
 // Очищаем кэш для текущего модуля
 $cache = Bitrix\Main\Data\Cache::createInstance();
-$cacheKey = "service_locator_{$moduleName}";
-if ($cache->clean($cacheKey)) {
+if ($cache->clean("service_locator_$moduleName", "/service_locator/$moduleName")) {
     echo "Cleared service locator cache for module $moduleName\n";
 } else {
     echo "No cache to clear for module $moduleName\n";
