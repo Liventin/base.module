@@ -108,6 +108,7 @@ $replacements = [
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 $vendorPath = "$moduleDir/vendor/";
 
+
 // Копируем .settings.php, если отсутствует
 $rootSettingsPath = "$moduleDir/.settings.php";
 if (!file_exists($rootSettingsPath)) {
@@ -265,6 +266,15 @@ function removeMatchingSrcFiles(string $packageSrcDir, string $moduleSrcDir): vo
 }
 
 // Обрабатываем каждый пакет
+$targetServiceLocatorDir = "$moduleDir/service_locator";
+$hasAnyRedirect = !empty($serviceRedirects);
+
+// Если есть хотя бы одно перенаправление, очищаем папку service_locator модуля
+if ($hasAnyRedirect && is_dir($targetServiceLocatorDir)) {
+    echo "Clearing service_locator directory in module due to redirect...\n";
+    removeDirectory($targetServiceLocatorDir);
+}
+
 foreach ($packagesToProcess as $package) {
     $packageDir = "$vendorDir/$package";
     echo "Processing package: $package\n";
@@ -294,6 +304,7 @@ foreach ($packagesToProcess as $package) {
         echo "Removing matching files from $moduleSrcDir based on $packageSrcDir...\n";
         removeMatchingSrcFiles($packageSrcDir, $moduleSrcDir);
     }
+
 
     // Перемещаем файлы (без service_locator, lib/Src копируется, если нет перенаправления)
     $movedFiles = [];
@@ -364,28 +375,9 @@ foreach ($packagesToProcess as $package) {
 
     // Обрабатываем service_locator
     $packageServiceLocatorDir = "$packageDir/service_locator";
-    $targetServiceLocatorDir = "$moduleDir/service_locator";
     $shouldProcessServiceLocator = $hasRedirect || ($package === 'liventin/base.module' && file_exists(
                 "$packageServiceLocatorDir/class.list.php"
             ));
-
-    // Если нет перенаправления, удаляем файлы из service_locator модуля (кроме class.list.php)
-    if (!$hasRedirect && is_dir($targetServiceLocatorDir)) {
-        $iterator = new DirectoryIterator($targetServiceLocatorDir);
-        foreach ($iterator as $fileInfo) {
-            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
-                continue;
-            }
-            if ($fileInfo->getFilename() === 'class.list.php') {
-                continue;
-            }
-
-            $filePath = $fileInfo->getPathname();
-            unlink($filePath);
-            echo "Removed $filePath from module service_locator (no redirect)\n";
-        }
-        removeEmptyDirectories($targetServiceLocatorDir);
-    }
 
     // Копируем файлы из service_locator пакета, если нужно
     if ($shouldProcessServiceLocator && is_dir($packageServiceLocatorDir)) {
@@ -402,8 +394,7 @@ foreach ($packagesToProcess as $package) {
             if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
                 continue;
             }
-            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename(
-                    ) === 'class.list.php')) {
+            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename() === 'class.list.php')) {
                 continue;
             }
 
@@ -411,6 +402,7 @@ foreach ($packagesToProcess as $package) {
             $targetFile = "$targetServiceLocatorDir/{$fileInfo->getFilename()}";
             copy($sourceFile, $targetFile);
             echo "Copied $sourceFile to $targetFile\n";
+
 
             // Обновляем содержимое файла (включая class.list.php, если есть перенаправление)
             if ($hasRedirect || $fileInfo->getFilename() !== 'class.list.php') {
