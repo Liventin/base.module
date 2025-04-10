@@ -24,8 +24,6 @@ echo "Bitrix root: $bitrixRoot\n";
 echo "Module directory: $moduleDir\n";
 echo "Bitrix CLI bootstrap: $bootstrapPath\n";
 
-use Bitrix\Main\Data\Cache;
-
 // Читаем composer.json
 $composerJsonPath = "$moduleDir/composer.json";
 if (!file_exists($composerJsonPath)) {
@@ -448,10 +446,9 @@ foreach ($packagesToProcess as $package) {
 }
 
 // Очищаем кэш для текущего модуля
-$cache = Cache::createInstance();
+$cache = Bitrix\Main\Data\Cache::createInstance();
 $cacheKey = "service_locator_{$moduleName}";
-$cacheDir = "service_locator/{$moduleName}";
-if ($cache->clean($cacheKey, $cacheDir)) {
+if ($cache->clean($cacheKey)) {
     echo "Cleared service locator cache for module $moduleName\n";
 } else {
     echo "No cache to clear for module $moduleName\n";
