@@ -1,9 +1,6 @@
 <?php
-// post-install.php
-
 // Определяем корневую директорию модуля
 $moduleDir = dirname(__DIR__, 4);
-echo "Module directory: $moduleDir\n";
 
 // Находим корень Bitrix, поднимаясь вверх, пока не найдём bitrix/.settings.php
 $bitrixRoot = $moduleDir;
@@ -14,7 +11,6 @@ if ($bitrixRoot === '/') {
     echo "Could not find Bitrix root directory\n";
     exit(1);
 }
-echo "Bitrix root: $bitrixRoot\n";
 
 // Подключаем ядро Bitrix через CLI bootstrap
 $bootstrapPath = "$bitrixRoot/bitrix/modules/main/cli/bootstrap.php";
@@ -23,6 +19,10 @@ if (!file_exists($bootstrapPath)) {
     exit(1);
 }
 require_once $bootstrapPath;
+
+echo "Bitrix root: $bitrixRoot\n";
+echo "Module directory: $moduleDir\n";
+echo "Bitrix CLI bootstrap: $bootstrapPath\n";
 
 use Bitrix\Main\Data\Cache;
 
