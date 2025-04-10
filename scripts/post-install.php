@@ -104,10 +104,9 @@ $replacements = [
     'base.module' => $moduleName,
     'Base\\Module' => $namespacePrefix,
     'base_module' => str_replace('.', '_', $moduleName),
-    'BASE_MODULE' => strtoupper(str_replace('.', '_', $moduleName)),
 ];
+$replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 $vendorPath = "$moduleDir/vendor/";
-
 
 // Копируем .settings.php, если отсутствует
 $rootSettingsPath = "$moduleDir/.settings.php";
@@ -282,7 +281,7 @@ foreach ($packagesToProcess as $package) {
     }
 
     // Формируем пути исключения
-    $excludePaths = array_map(fn($path) => rtrim("$packageDir$path", '/\\'), $excludePathsBase);
+    $excludePaths = array_map(static fn($path) => rtrim("$packageDir$path", '/\\'), $excludePathsBase);
     if ($hasRedirect) {
         $excludePaths[] = rtrim("$packageDir/lib/Src", '/\\');
     }
@@ -304,11 +303,10 @@ foreach ($packagesToProcess as $package) {
         RecursiveIteratorIterator::SELF_FIRST
     );
 
-
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
         $normalizedItemPath = str_replace('\\', '/', $itemPath);
-        if (in_array(true, array_map(fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths), true)) {
+        if (in_array(true, array_map(static fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths), true)) {
             echo "Skipping path: $itemPath\n";
             continue;
         }
