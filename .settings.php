@@ -14,7 +14,7 @@ $settings = [
 $moduleId = basename(__DIR__);
 $cache = Cache::createInstance();
 $locatorServices = [];
-if ($cache->initCache(86400, "service_locator_$moduleId", "service_locator/$moduleId")) {
+if ($cache->initCache(86400, "service_locator_$moduleId", "/service_locator/$moduleId")) {
     $locatorServices = $cache->getVars();
 } else {
     $serviceLocatorDir = __DIR__ . '/service_locator';
