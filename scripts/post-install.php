@@ -22,9 +22,7 @@ try {
 }
 
 // Извлекаем имя модуля и формируем namespace
-$moduleName = explode('/', $composerData['name'])[1] ?? throw new RuntimeException(
-    "Could not determine module name from composer.json."
-);
+$moduleName = explode('/', $composerData['name'])[1] ?? throw new RuntimeException("Could not determine module name from composer.json.");
 $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 
@@ -40,37 +38,29 @@ echo "Vendor directory: $vendorDir\n";
 $packagesToProcess = ['liventin/base.module'];
 $vendorIterator = new DirectoryIterator($vendorDir);
 foreach ($vendorIterator as $vendorItem) {
-    if (!$vendorItem->isDir() || $vendorItem->isDot()) {
-        continue;
-    }
+    if (!$vendorItem->isDir() || $vendorItem->isDot()) continue;
 
     $vendorName = $vendorItem->getFilename();
     $packageIterator = new DirectoryIterator($vendorItem->getPathname());
     foreach ($packageIterator as $packageItem) {
-        if (!$packageItem->isDir() || $packageItem->isDot()) {
-            continue;
-        }
+        if (!$packageItem->isDot() && $packageItem->isDir()) {
+            $packageName = "$vendorName/{$packageItem->getFilename()}";
+            if ($packageName === 'liventin/base.module') continue;
 
-        $packageName = "$vendorName/{$packageItem->getFilename()}";
-        if ($packageName === 'liventin/base.module') {
-            continue;
-        }
+            $packageComposerJson = "{$packageItem->getPathname()}/composer.json";
+            if (!file_exists($packageComposerJson)) continue;
 
-        $packageComposerJson = "{$packageItem->getPathname()}/composer.json";
-        if (!file_exists($packageComposerJson)) {
-            continue;
-        }
+            try {
+                $packageData = json_decode(file_get_contents($packageComposerJson), true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException $e) {
+                echo "Failed to parse composer.json for $packageName: " . $e->getMessage() . "\n";
+                continue;
+            }
 
-        try {
-            $packageData = json_decode(file_get_contents($packageComposerJson), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            echo "Failed to parse composer.json for $packageName: " . $e->getMessage() . "\n";
-            continue;
-        }
-
-        if (isset($packageData['require']['liventin/base.module'])) {
-            echo "Found dependent package: $packageName\n";
-            $packagesToProcess[] = $packageName;
+            if (isset($packageData['require']['liventin/base.module'])) {
+                echo "Found dependent package: $packageName\n";
+                $packagesToProcess[] = $packageName;
+            }
         }
     }
 }
@@ -110,9 +100,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
 {
     $content = file_get_contents($filePath);
     $returnPos = strpos($content, 'return ');
-    if ($returnPos === false) {
-        return;
-    }
+    if ($returnPos === false) return;
 
 
     $beforeReturn = substr($content, 0, $returnPos);
@@ -150,10 +138,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
                     $classOnly = substr($className, $lastSlashPos + 1);
                     $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
                     $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
-                    $arrayContent = substr($arrayContent, 0, $classNameStart) . $newClassName . substr(
-                            $arrayContent,
-                            $classNameEnd
-                        );
+                    $arrayContent = substr($arrayContent, 0, $classNameStart) . $newClassName . substr($arrayContent, $classNameEnd);
                 }
             }
         }
@@ -166,10 +151,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
             if ($paramsEnd !== false) {
                 $paramsContent = substr($arrayContent, $paramsStart, $paramsEnd - $paramsStart);
                 $newParamsContent = str_replace('base.module', $moduleName, $paramsContent);
-                $arrayContent = substr($arrayContent, 0, $paramsStart) . $newParamsContent . substr(
-                        $arrayContent,
-                        $paramsEnd
-                    );
+                $arrayContent = substr($arrayContent, 0, $paramsStart) . $newParamsContent . substr($arrayContent, $paramsEnd);
             }
         }
     }
@@ -182,9 +164,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
 // Функция для удаления директории
 function removeDirectory(string $dir): void
 {
-    if (!is_dir($dir)) {
-        return;
-    }
+    if (!is_dir($dir)) return;
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
@@ -198,9 +178,7 @@ function removeDirectory(string $dir): void
 // Функция для удаления пустых директорий
 function removeEmptyDirectories(string $dir): void
 {
-    if (!is_dir($dir)) {
-        return;
-    }
+    if (!is_dir($dir)) return;
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
         RecursiveIteratorIterator::CHILD_FIRST
@@ -241,6 +219,15 @@ foreach ($packagesToProcess as $package) {
     }
     echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
 
+    // Если есть перенаправление, удаляем lib/Src из модуля
+    if ($hasRedirect) {
+        $moduleSrcDir = "$moduleDir/lib/Src";
+        if (is_dir($moduleSrcDir)) {
+            echo "Removing lib/Src directory from module $moduleDir due to service redirect...\n";
+            removeDirectory($moduleSrcDir);
+        }
+    }
+
     // Перемещаем файлы (без service_locator, lib/Src копируется, если нет перенаправления)
     $movedFiles = [];
     echo "Moving files from $packageDir to $moduleDir...\n";
@@ -252,7 +239,7 @@ foreach ($packagesToProcess as $package) {
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
         $normalizedItemPath = str_replace('\\', '/', $itemPath);
-        if (in_array(true, array_map(fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths), true)) {
+        if (in_array(true, array_map(fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths))) {
             echo "Skipping path: $itemPath\n";
             continue;
         }
@@ -261,20 +248,13 @@ foreach ($packagesToProcess as $package) {
         $targetPath = "$moduleDir/$relativePath";
 
         if ($item->isDir()) {
-            if (
-                !is_dir($targetPath) &&
-                !mkdir($targetPath, 0755, true) &&
-                !is_dir($targetPath)
-            ) {
+            if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
                 throw new RuntimeException("Directory '$targetPath' was not created");
             }
             echo "Created directory: $targetPath\n";
         } else {
             $fileName = basename($itemPath);
-            $isProtected = array_key_exists(
-                    $relativePath,
-                    $protectedPaths
-                ) && $protectedPaths[$relativePath] === $fileName;
+            $isProtected = array_key_exists($relativePath, $protectedPaths) && $protectedPaths[$relativePath] === $fileName;
 
             if ($isProtected && file_exists($targetPath)) {
                 echo "File $fileName at $relativePath already exists, removing from source: $itemPath\n";
@@ -297,35 +277,26 @@ foreach ($packagesToProcess as $package) {
 
         if (pathinfo($filePath, PATHINFO_EXTENSION) === 'php') {
             echo "Processing moved file: $filePath\n";
-            file_put_contents(
-                $filePath,
-                str_replace(
-                    array_keys($replacements),
-                    array_values($replacements),
-                    file_get_contents($filePath)
-                )
-            );
+            file_put_contents($filePath, str_replace(
+                array_keys($replacements),
+                array_values($replacements),
+                file_get_contents($filePath)
+            ));
         }
     }
 
     // Обрабатываем service_locator
     $packageServiceLocatorDir = "$packageDir/service_locator";
     $targetServiceLocatorDir = "$moduleDir/service_locator";
-    $shouldProcessServiceLocator = $hasRedirect || ($package === 'liventin/base.module' && file_exists(
-                "$packageServiceLocatorDir/class.list.php"
-            ));
+    $shouldProcessServiceLocator = $hasRedirect || ($package === 'liventin/base.module' && file_exists("$packageServiceLocatorDir/class.list.php"));
+
 
     // Если нет перенаправления, удаляем файлы из service_locator модуля (кроме class.list.php)
     if (!$hasRedirect && is_dir($targetServiceLocatorDir)) {
         $iterator = new DirectoryIterator($targetServiceLocatorDir);
         foreach ($iterator as $fileInfo) {
-            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
-                continue;
-            }
-            if ($fileInfo->getFilename() === 'class.list.php') {
-                continue;
-            }
-
+            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') continue;
+            if ($fileInfo->getFilename() === 'class.list.php') continue;
 
             $filePath = $fileInfo->getPathname();
             unlink($filePath);
@@ -336,52 +307,49 @@ foreach ($packagesToProcess as $package) {
 
     // Копируем файлы из service_locator пакета, если нужно
     if ($shouldProcessServiceLocator && is_dir($packageServiceLocatorDir)) {
-        if (
-            !is_dir($targetServiceLocatorDir) &&
-            !mkdir($targetServiceLocatorDir, 0755, true) &&
-            !is_dir($targetServiceLocatorDir)
-        ) {
+        if (!is_dir($targetServiceLocatorDir) && !mkdir($targetServiceLocatorDir, 0755, true) && !is_dir(
+                $targetServiceLocatorDir
+            )) {
             throw new RuntimeException("Directory '$targetServiceLocatorDir' was not created");
         }
 
         $iterator = new DirectoryIterator($packageServiceLocatorDir);
         foreach ($iterator as $fileInfo) {
-            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
-                continue;
-            }
-            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename(
-                    ) === 'class.list.php')) {
-                continue;
-            }
+            if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') continue;
+            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename() === 'class.list.php')) continue;
 
             $sourceFile = $fileInfo->getPathname();
             $targetFile = "$targetServiceLocatorDir/{$fileInfo->getFilename()}";
             copy($sourceFile, $targetFile);
             echo "Copied $sourceFile to $targetFile\n";
 
-            // Обновляем содержимое файла
-            updateServiceLocatorFile($targetFile, $moduleName, $hasRedirect ? $redirectModule : null);
+            // Обновляем содержимое файла (включая class.list.php, если есть перенаправление)
+            if ($hasRedirect || $fileInfo->getFilename() !== 'class.list.php') {
+                updateServiceLocatorFile($targetFile, $moduleName, $hasRedirect ? $redirectModule : null);
+            }
         }
     }
 
-    // Удаляем service_locator из пакета, если нет перенаправления
-    if (!$hasRedirect && is_dir($packageServiceLocatorDir)) {
-        echo "Removing service_locator directory from $packageDir (no redirect)...\n";
-        removeDirectory($packageServiceLocatorDir);
-    }
+    // Очищаем vendor/[package]/, оставляя только scripts, composer.json и README.md
+    echo "Cleaning up vendor package directory $packageDir...\n";
+    $iterator = new DirectoryIterator($packageDir);
+    foreach ($iterator as $item) {
+        if ($item->isDot()) continue;
+        $itemPath = $item->getPathname();
+        $itemName = $item->getFilename();
+        if (in_array($itemName, ['scripts', 'composer.json', 'README.md'])) {
+            echo "Preserving $itemPath in vendor\n";
+            continue;
+        }
 
-    // Удаляем lib/Src из пакета, если есть перенаправление
-    if ($hasRedirect) {
-        $srcDir = "$packageDir/lib/Src";
-        if (is_dir($srcDir)) {
-            echo "Removing lib/Src directory from $packageDir due to service redirect...\n";
-            removeDirectory($srcDir);
+        if ($item->isDir()) {
+            echo "Removing directory $itemPath from vendor...\n";
+            removeDirectory($itemPath);
+        } else {
+            echo "Removing file $itemPath from vendor...\n";
+            unlink($itemPath);
         }
     }
-
-    // Удаляем пустые директории в пакете
-    echo "Cleaning up empty directories in $packageDir...\n";
-    removeEmptyDirectories($packageDir);
 }
 
 // Сбрасываем кэш для текущего модуля
