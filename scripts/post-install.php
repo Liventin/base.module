@@ -384,16 +384,5 @@ foreach ($packagesToProcess as $package) {
     }
 }
 
-// Сбрасываем кэш для текущего модуля
-$bitrixRoot = dirname($moduleDir, 2); // Предполагаем, что модуль находится в local/modules/
-$cacheDir = "service_locator/{$moduleName}";
-$cachePath = "$bitrixRoot/bitrix/cache/$cacheDir";
-if (is_dir($cachePath)) {
-    removeDirectory($cachePath);
-    echo "Cleared service locator cache for module $moduleName at $cachePath\n";
-} else {
-    echo "No cache to clear for module $moduleName at $cachePath\n";
-}
-
 echo "Module namespace and variables updated for $moduleName\n";
 error_log("Post-install script completed for $moduleName");

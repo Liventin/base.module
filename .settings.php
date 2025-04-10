@@ -36,7 +36,7 @@ if ($cache->initCache(86400, "service_locator_$moduleId", "service_locator/$modu
         }
     }
     $cache->startDataCache();
-    $cache->endDataCache($serviceLocatorDir);
+    $cache->endDataCache($locatorServices);
 }
 
 $settings['services']['value'] = array_merge($locatorServices, $settings['services']['value']);
