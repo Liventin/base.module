@@ -196,6 +196,39 @@ function removeEmptyDirectories(string $dir): void
 }
 
 
+// Функция для выборочного удаления файлов из lib/Src модуля
+function removeMatchingSrcFiles(string $packageSrcDir, string $moduleSrcDir): void
+{
+    if (!is_dir($packageSrcDir) || !is_dir($moduleSrcDir)) return;
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageSrcDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $relativePath = substr($item->getPathname(), strlen($packageSrcDir) + 1);
+        $modulePath = "$moduleSrcDir/$relativePath";
+
+        if ($item->isDir()) {
+            // Если это директория, проверяем, существует ли она в модуле
+            if (is_dir($modulePath) && !count(array_diff(scandir($modulePath), ['.', '..']))) {
+                echo "Removing empty directory $modulePath from module lib/Src...\n";
+                rmdir($modulePath);
+            }
+        } else {
+            // Если это файл, удаляем его из модуля, если он существует
+            if (file_exists($modulePath)) {
+                echo "Removing file $modulePath from module lib/Src (matches package)...\n";
+                unlink($modulePath);
+            }
+        }
+    }
+
+    // Удаляем пустые директории в moduleSrcDir после удаления файлов
+    removeEmptyDirectories($moduleSrcDir);
+}
+
 // Обрабатываем каждый пакет
 foreach ($packagesToProcess as $package) {
     $packageDir = "$vendorDir/$package";
@@ -219,13 +252,12 @@ foreach ($packagesToProcess as $package) {
     }
     echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
 
-    // Если есть перенаправление, удаляем lib/Src из модуля
+    // Если есть перенаправление, удаляем только те файлы из lib/Src модуля, которые есть в пакете
     if ($hasRedirect) {
+        $packageSrcDir = "$packageDir/lib/Src";
         $moduleSrcDir = "$moduleDir/lib/Src";
-        if (is_dir($moduleSrcDir)) {
-            echo "Removing lib/Src directory from module $moduleDir due to service redirect...\n";
-            removeDirectory($moduleSrcDir);
-        }
+        echo "Removing matching files from $moduleSrcDir based on $packageSrcDir...\n";
+        removeMatchingSrcFiles($packageSrcDir, $moduleSrcDir);
     }
 
     // Перемещаем файлы (без service_locator, lib/Src копируется, если нет перенаправления)
@@ -239,7 +271,7 @@ foreach ($packagesToProcess as $package) {
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
         $normalizedItemPath = str_replace('\\', '/', $itemPath);
-        if (in_array(true, array_map(fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths))) {
+        if (in_array(true, array_map(fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths), true)) {
             echo "Skipping path: $itemPath\n";
             continue;
         }
@@ -255,6 +287,7 @@ foreach ($packagesToProcess as $package) {
         } else {
             $fileName = basename($itemPath);
             $isProtected = array_key_exists($relativePath, $protectedPaths) && $protectedPaths[$relativePath] === $fileName;
+
 
             if ($isProtected && file_exists($targetPath)) {
                 echo "File $fileName at $relativePath already exists, removing from source: $itemPath\n";
@@ -289,7 +322,6 @@ foreach ($packagesToProcess as $package) {
     $packageServiceLocatorDir = "$packageDir/service_locator";
     $targetServiceLocatorDir = "$moduleDir/service_locator";
     $shouldProcessServiceLocator = $hasRedirect || ($package === 'liventin/base.module' && file_exists("$packageServiceLocatorDir/class.list.php"));
-
 
     // Если нет перенаправления, удаляем файлы из service_locator модуля (кроме class.list.php)
     if (!$hasRedirect && is_dir($targetServiceLocatorDir)) {
