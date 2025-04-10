@@ -267,11 +267,10 @@ function removeMatchingSrcFiles(string $packageSrcDir, string $moduleSrcDir): vo
 
 // Обрабатываем каждый пакет
 $targetServiceLocatorDir = "$moduleDir/service_locator";
-$hasAnyRedirect = !empty($serviceRedirects);
 
-// Если есть хотя бы одно перенаправление, очищаем папку service_locator модуля
-if ($hasAnyRedirect && is_dir($targetServiceLocatorDir)) {
-    echo "Clearing service_locator directory in module due to redirect...\n";
+// Очищаем папку service_locator модуля перед копированием новых файлов
+if (is_dir($targetServiceLocatorDir)) {
+    echo "Clearing service_locator directory in module...\n";
     removeDirectory($targetServiceLocatorDir);
 }
 
