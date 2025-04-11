@@ -28,6 +28,6 @@ redirect (optional)
 ```
 "extra": {
   "service-redirect": {
-    "liventin/base.module": "sintec.service",
+    "liventin/base.module": "module.name",
   }
 },
