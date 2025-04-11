@@ -1,3 +1,4 @@
+install | update
 ```
 {
   "name": "provider/modul.name",
@@ -23,3 +24,10 @@
   }
 }
 ```
+redirect (optional)
+```
+"extra": {
+  "service-redirect": {
+    "liventin/base.module": "sintec.service",
+  }
+},
