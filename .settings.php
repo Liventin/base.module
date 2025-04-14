@@ -1,6 +1,7 @@
 <?php
 
 use Bitrix\Main\Data\Cache;
+use Bitrix\Main\Data\TaggedCache;
 
 defined('B_PROLOG_INCLUDED') || die;
 
@@ -13,10 +14,15 @@ $settings = [
 
 $moduleId = basename(__DIR__);
 $cache = Cache::createInstance();
+$taggedCache = new TaggedCache();
+$cacheId = "service_locator_$moduleId";
+$cacheDir = "/$moduleId/";
+
 $locatorServices = [];
-if ($cache->initCache(86400, "service_locator_$moduleId", "/service_locator/$moduleId")) {
-    $locatorServices = $cache->getVars();
-} else {
+if ($cache->startDataCache(86400, $cacheId, $cacheDir)) {
+    $taggedCache->startTagCache($cacheDir);
+    $taggedCache->registerTag($cacheId);
+
     $serviceLocatorDir = __DIR__ . '/service_locator';
     if (is_dir($serviceLocatorDir)) {
         $iterator = new DirectoryIterator($serviceLocatorDir);
@@ -35,8 +41,11 @@ if ($cache->initCache(86400, "service_locator_$moduleId", "/service_locator/$mod
             }
         }
     }
-    $cache->startDataCache();
+
     $cache->endDataCache($locatorServices);
+    $taggedCache->endTagCache();
+} else {
+    $locatorServices = $cache->getVars();
 }
 
 $settings['services']['value'] = array_merge($locatorServices, $settings['services']['value']);

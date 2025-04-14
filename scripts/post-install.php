@@ -1,4 +1,7 @@
 <?php
+
+use Bitrix\Main\Data\TaggedCache;
+
 // Определяем корневую директорию модуля
 $moduleDir = dirname(__DIR__, 4);
 
@@ -137,9 +140,9 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
     // Заменяем ключ сервиса (base.module -> $moduleName)
     $keyStart = strpos($arrayContent, "'base.module.");
     if ($keyStart !== false) {
-        $keyEnd = strpos($arrayContent, "' =>", $keyStart);
+        $keyEnd = strpos($arrayContent, "' => ", $keyStart);
         if ($keyEnd !== false) {
-            $oldKey = substr($arrayContent, $keyStart, $keyEnd - $keyStart + 1);
+            $oldKey = substr($arrayContent, $keyStart, $keyEnd - $keyStart);
             $newKey = "'$moduleName." . substr($oldKey, strlen("'base.module."));
             $arrayContent = str_replace($oldKey, $newKey, $arrayContent);
         }
@@ -435,12 +438,9 @@ foreach ($packagesToProcess as $package) {
 }
 
 // Очищаем кэш для текущего модуля
-$cache = Bitrix\Main\Data\Cache::createInstance();
-if ($cache->clean("service_locator_$moduleName", "/service_locator/$moduleName")) {
-    echo "Cleared service locator cache for module $moduleName\n";
-} else {
-    echo "No cache to clear for module $moduleName\n";
-}
+$taggedCache = new TaggedCache();
+$taggedCache->clearByTag("service_locator_$moduleName");
+echo "Cleared service locator cache for module $moduleName\n";
 
 echo "Module namespace and variables updated for $moduleName\n";
 error_log("Post-install script completed for $moduleName");
