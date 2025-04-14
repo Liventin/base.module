@@ -168,7 +168,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
                     $classOnly = substr($className, $lastSlashPos + 1);
                     $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
                     $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
-                    $arrayContent = substr($arrayContent, 0, $classNameStart) . $newClassName . substr(
+                    $arrayContent = substr($arrayContent, 0, $classNameStart) . ' ' . $newClassName . substr(
                             $arrayContent,
                             $classNameEnd
                         );
