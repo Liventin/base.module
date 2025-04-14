@@ -31,3 +31,20 @@ redirect (optional)
     "liventin/base.module": "module.name",
   }
 },
+```
+
+<table>
+<tr>
+<th>additional packages</th>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.handlers">Bitrix Handlers Service</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.migration.userfields">Migration User Fields</a>
+</td>
+</tr>
+</table>
