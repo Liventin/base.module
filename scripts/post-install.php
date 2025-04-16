@@ -319,7 +319,11 @@ foreach ($packagesToProcess as $package) {
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
         $normalizedItemPath = str_replace('\\', '/', $itemPath);
-        if (in_array(true, array_map(static fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths), true)) {
+        if (in_array(
+            true,
+            array_map(static fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths),
+            true
+        )) {
             echo "Skipping path: $itemPath\n";
             continue;
         }
@@ -396,7 +400,8 @@ foreach ($packagesToProcess as $package) {
             if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
                 continue;
             }
-            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename() === 'class.list.php')) {
+            if (!$hasRedirect && !($package === 'liventin/base.module' && $fileInfo->getFilename(
+                    ) === 'class.list.php')) {
                 continue;
             }
 
@@ -407,9 +412,7 @@ foreach ($packagesToProcess as $package) {
 
 
             // Обновляем содержимое файла (включая class.list.php, если есть перенаправление)
-            if ($hasRedirect || $fileInfo->getFilename() !== 'class.list.php') {
-                updateServiceLocatorFile($targetFile, $moduleName, $hasRedirect ? $redirectModule : null);
-            }
+            updateServiceLocatorFile($targetFile, $moduleName, $hasRedirect ? $redirectModule : $moduleName);
         }
     }
 
