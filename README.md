@@ -39,12 +39,22 @@ redirect (optional)
 </tr>
 <tr>
 <td>
-<a href="https://github.com/Liventin/base.module.handlers">Bitrix Handlers Service</a>
+<a href="https://github.com/Liventin/base.module.handlers">Bitrix Handlers Service For Base Events</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.handlers.smartprocess.orm">Bitrix Handlers Service For SmartProcess Orm Events</a>
 </td>
 </tr>
 <tr>
 <td>
 <a href="https://github.com/Liventin/base.module.migration.userfields">Migration User Fields</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.smartprocess">SmartProcess</a>
 </td>
 </tr>
 </table>
