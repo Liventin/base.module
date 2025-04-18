@@ -58,3 +58,24 @@ redirect (optional)
 </td>
 </tr>
 </table>
+
+<table>
+<tr>
+<th>Module Options Providers</th>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.options.provider.note">Note</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.options.provider.separator">Separator</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.options.provider.text">Text</a>
+</td>
+</tr>
+</table>
