@@ -84,3 +84,31 @@ redirect (optional)
 </td>
 </tr>
 </table>
+
+PhpStorm Option Tab Live template
+```
+<?php
+
+namespace ${MODULE_PROVIDER_CAMMAL_CASE}\\${MODULE_CODE_CAMMAL_CASE}\Options;
+
+use ${MODULE_PROVIDER_CAMMAL_CASE}\\${MODULE_CODE_CAMMAL_CASE}\Service\Options\Tab;
+
+class TabMain implements Tab
+{
+
+    public static function getId(): string
+    {
+        return 'main';
+    }
+
+    public static function getName(): string
+    {
+        return 'Основные';
+    }
+
+    public static function getSort(): int
+    {
+        return 100;
+    }
+}
+```
