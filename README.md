@@ -86,7 +86,7 @@ redirect (optional)
 </table>
 
 PhpStorm Option Tab Live template
-```
+```php
 <?php
 
 namespace ${MODULE_PROVIDER_CAMMAL_CASE}\\${MODULE_CODE_CAMMAL_CASE}\Options;
