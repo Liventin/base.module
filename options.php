@@ -1,5 +1,6 @@
 <?php
 
+use Bitrix\Main\Data\TaggedCache;
 use Bitrix\Main\Loader;
 use Base\Module\Service\Container;
 use Base\Module\Service\Tool\ClassList as IClassList;
@@ -11,6 +12,10 @@ $moduleId = basename(__DIR__);
 
 try {
     Loader::requireModule($moduleId);
+
+    $taggedCache = new TaggedCache();
+    $taggedCache->clearByTag("service_locator_$moduleId");
+
     $classList = Container::get(IClassList::SERVICE_CODE);
 
     $tabClasses = $classList->setSubClassesFilter([ITab::class])->getFromLib("Options");
