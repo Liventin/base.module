@@ -4,7 +4,7 @@ install | update
   "name": "provider/modul.name",
   "description": "bitrix module",
   "require": {
-    "liventin/base.module": "dev-main"
+    "liventin/base.module": "^1.0.0"
   },
   "require-dev": {
     "roave/security-advisories": "dev-latest"
