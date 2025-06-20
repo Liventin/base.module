@@ -56,6 +56,12 @@ redirect (optional)
 </td>
 </tr>
 <tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.migration.smart.process.workspace">Migration Smart Process Workspace</a>
+</td>
+</tr>
+<tr>
 <td>
 <a href="https://github.com/Liventin/base.module.smartprocess">SmartProcess</a>
 </td>
