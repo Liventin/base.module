@@ -52,6 +52,11 @@ redirect (optional)
 </tr>
 <tr>
 <td>
+<a href="https://github.com/Liventin/base.module.migration.crmcategory">Migration Crm Category</a>
+</td>
+</tr>
+<tr>
+<td>
 <a href="https://github.com/Liventin/base.module.migration.smart.process">Migration Smart Process</a>
 </td>
 </tr>
