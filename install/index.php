@@ -32,6 +32,8 @@ class base_module extends CModule
     public $PARTNER_URI;
     public $MODULE_GROUP_RIGHTS = 'Y';
 
+    private ?CAdminException $exception = null;
+
     private const LANG_PREFIX = 'BASE_MODULE_';
 
     public function __construct()
@@ -63,7 +65,7 @@ class base_module extends CModule
     {
         global $APPLICATION;
 
-        $exception = new CAdminException([], 'install');
+        $this->exception = new CAdminException([], 'install');
         try {
             ModuleManager::registerModule($this->MODULE_ID);
             Loader::includeModule($this->MODULE_ID);
@@ -81,11 +83,11 @@ class base_module extends CModule
                 throw new ModuleException('Installation failed, rollback performed');
             }
         } catch (Throwable $e) {
-            $exception->AddMessage(['text' => $e->getMessage()]);
+            $this->exception->AddMessage(['text' => $e->getMessage()]);
             ModuleManager::unRegisterModule($this->MODULE_ID);
         }
 
-        $APPLICATION->ThrowException($exception);
+        $APPLICATION->ThrowException($this->exception);
         $APPLICATION->IncludeAdminFile(
             Loc::getMessage(self::LANG_PREFIX . 'MODULE_INSTALL_TITLE'),
             __DIR__ . '/step.php'
@@ -96,7 +98,7 @@ class base_module extends CModule
     {
         global $APPLICATION;
 
-        $exception = new CAdminException([], 'preUnInstall');
+        $this->exception = new CAdminException([], 'preUnInstall');
         try {
             Loader::includeModule($this->MODULE_ID);
             $request = Context::getCurrent()?->getRequest();
@@ -104,7 +106,7 @@ class base_module extends CModule
                 return;
             }
             if ((int)$request['step'] >= 2) {
-                $exception = new CAdminException([], 'unInstall');
+                $this->exception = new CAdminException([], 'unInstall');
                 $this->executeClasses(
                     UnInstall::class,
                     'unInstall',
@@ -114,15 +116,15 @@ class base_module extends CModule
                     null,
                     $request['savedata'] === 'Y'
                 );
-                if (empty($exception->GetMessages())) {
+                if (empty($this->exception->GetMessages())) {
                     ModuleManager::unRegisterModule($this->MODULE_ID);
                 }
             }
         } catch (Throwable $e) {
-            $exception->AddMessage(['text' => $e->getMessage()]);
+            $this->exception->AddMessage(['text' => $e->getMessage()]);
         }
 
-        $APPLICATION->ThrowException($exception);
+        $APPLICATION->ThrowException($this->exception);
         $APPLICATION->IncludeAdminFile(
             Loc::getMessage(self::LANG_PREFIX . 'MODULE_UNINSTALL_TITLE'),
             __DIR__ . '/step.php'
@@ -138,22 +140,22 @@ class base_module extends CModule
     {
         global $APPLICATION;
 
-        $exception = new CAdminException([], 'reInstall');
+        $this->exception = new CAdminException([], 'reInstall');
         try {
             Loader::includeModule($this->MODULE_ID);
             $this->executeClasses(ReInstall::class, 'reInstall', 'getReInstallSort');
         } catch (Throwable $e) {
-            $exception->AddMessage(['text' => $e->getMessage()]);
+            $this->exception->AddMessage(['text' => $e->getMessage()]);
         }
 
         if ($isManual) {
-            $APPLICATION->ThrowException($exception);
+            $APPLICATION->ThrowException($this->exception);
             $APPLICATION->IncludeAdminFile(
                 Loc::getMessage(self::LANG_PREFIX . 'MODULE_REINSTALL_TITLE'),
                 __DIR__ . '/step.php'
             );
-        } elseif ($exception->GetMessages()) {
-            throw new ModuleException($exception->GetString());
+        } elseif ($this->exception->GetMessages()) {
+            throw new ModuleException($this->exception->GetString());
         }
     }
 
@@ -194,7 +196,6 @@ class base_module extends CModule
         );
         usort($sorted, static fn($a, $b) => $a['SORT'] <=> $b['SORT']);
 
-        $exception = new CAdminException([], 'execute');
         $installed = [];
 
         foreach ($sorted as $item) {
@@ -203,7 +204,7 @@ class base_module extends CModule
                 $param === null ? $instance->$method() : $instance->$method($param);
                 $installed[] = $item['CLASS'];
             } catch (Throwable $e) {
-                $exception->AddMessage(['text' => $e->getMessage()]);
+                $this->exception->AddMessage(['text' => $e->getMessage()]);
                 if ($rollbackInterface && $rollbackMethod && $rollbackSortMethod) {
                     $this->rollback($installed, $rollbackInterface, $rollbackMethod, $rollbackSortMethod);
                 }
@@ -211,8 +212,8 @@ class base_module extends CModule
             }
         }
 
-        if ($exception->GetMessages()) {
-            throw new ModuleException('Execution failed: ' . $exception->GetString());
+        if ($this->exception->GetMessages()) {
+            throw new ModuleException('Execution failed: ' . $this->exception->GetString());
         }
 
         return $installed;
