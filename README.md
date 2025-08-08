@@ -41,6 +41,12 @@ redirect (optional)
 </td>
 </tr>
 <tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.result.modifier.injection">Result Modifier Injection</a>
+</td>
+</tr>
+<tr>
 <td>
 <a href="https://github.com/Liventin/base.module.migration.userfields">Migration User Fields</a>
 </td>
