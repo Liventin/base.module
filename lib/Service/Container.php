@@ -10,7 +10,7 @@ use Throwable;
 
 class Container
 {
-    private static ServiceLocator $serviceLocator;
+    private static ?ServiceLocator $serviceLocator = null;
     private static bool $lazyServicesLoaded = false;
 
     /**
@@ -20,17 +20,11 @@ class Container
      */
     public static function get(string $serviceCode): mixed
     {
+        self::prepareServiceLocator();
+        self::prepareLazyService();
+
         try {
-            if (!isset(self::$serviceLocator)) {
-                self::$serviceLocator = ServiceLocator::getInstance();
-            }
-
-            if (!self::$lazyServicesLoaded) {
-                self::addLazyServices();
-                self::$lazyServicesLoaded = true;
-            }
             $service = self::$serviceLocator->get($serviceCode);
-
         } catch (Throwable $t) {
             throw new ModuleException($t->getMessage(), $t->getCode());
         }
@@ -39,11 +33,35 @@ class Container
     }
 
     /**
+     * @throws ModuleException
+     */
+    public static function has(string $serviceCode): bool
+    {
+        self::prepareServiceLocator();
+        self::prepareLazyService();
+
+        return self::$serviceLocator->has($serviceCode);
+    }
+
+    private static function prepareServiceLocator(): void
+    {
+        if (self::$serviceLocator !== null) {
+            return;
+        }
+
+        self::$serviceLocator = ServiceLocator::getInstance();
+    }
+
+    /**
      * @return void
      * @throws ModuleException
      */
-    private static function addLazyServices(): void
+    private static function prepareLazyService(): void
     {
+        if (self::$lazyServicesLoaded) {
+            return;
+        }
+
         try {
             $classListService = self::$serviceLocator->get(IClassList::SERVICE_CODE);
             if (!is_object($classListService) ||
@@ -69,6 +87,7 @@ class Container
                     }
                 }
             }
+            self::$lazyServicesLoaded = true;
         } catch (Throwable $t) {
             throw new ModuleException($t->getMessage(), $t->getCode());
         }
