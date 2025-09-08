@@ -41,6 +41,20 @@ redirect (optional)
 </td>
 </tr>
 <tr>
+<td>
+<a href="https://github.com/Liventin/base.module.iblock">Iblocks</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.smartprocess">SmartProcess</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.intranet.departmens.service">Intranet Departments</a>
+</td>
+</tr>
 <tr>
 <td>
 <a href="https://github.com/Liventin/base.module.result.modifier.injection">Result Modifier Injection</a>
@@ -49,6 +63,11 @@ redirect (optional)
 <tr>
 <td>
 <a href="https://github.com/Liventin/base.module.migration.userfields">Migration User Fields</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.migration.iblock">Migration Bitrix Iblock</a>
 </td>
 </tr>
 <tr>
@@ -70,11 +89,6 @@ redirect (optional)
 <tr>
 <td>
 <a href="https://github.com/Liventin/base.module.migration.smart.process.workspace">Migration Smart Process Workspace</a>
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.smartprocess">SmartProcess</a>
 </td>
 </tr>
 </table>
