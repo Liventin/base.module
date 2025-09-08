@@ -52,7 +52,7 @@ redirect (optional)
 </tr>
 <tr>
 <td>
-<a href="https://github.com/Liventin/base.module.intranet.departmens.service">Intranet Departments</a>
+<a href="https://github.com/Liventin/base.module.intranet.departments">Intranet Departments</a>
 </td>
 </tr>
 <tr>
