@@ -1,18 +1,17 @@
 <?php
 
+/** @noinspection DuplicatedCode */
+
 namespace Base\Module\Src\Options;
 
+use Base\Module\Exception\ModuleException;
 use Base\Module\Service\Tool\ClassList;
-use Bitrix\Main\ObjectNotFoundException;
-use Bitrix\Main\SystemException;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Engine\CurrentUser;
 use Bitrix\Main\Context;
 use Bitrix\Main\Loader;
 use Bitrix\Main\HttpRequest;
 use CAdminTabControl;
-use Psr\Container\NotFoundExceptionInterface;
-use ReflectionException;
 use Base\Module\Service\Container;
 use Base\Module\Service\LazyService;
 use Base\Module\Src\Options\Interface\OptionProvider as IOptionProvider;
@@ -36,10 +35,8 @@ class OptionsService
     }
 
     /**
-     * @throws NotFoundExceptionInterface
-     * @throws ObjectNotFoundException
-     * @throws ReflectionException
-     * @throws SystemException
+     * @return void
+     * @throws ModuleException
      */
     public function render(): void
     {
@@ -78,10 +75,8 @@ class OptionsService
         foreach ($this->tabs as $tab) {
             /** @noinspection DisconnectedForeachInstructionInspection */
             $tabControl->BeginNextTab();
-            foreach ($this->options as $option) {
-                if ($option["tabId"] === $tab["DIV"]) {
-                    echo $this->renderOption($option);
-                }
+            foreach ($this->options[$tab["DIV"]] as $option) {
+                echo $this->renderOption($option);
             }
         }
         echo bitrix_sessid_post();
@@ -145,23 +140,27 @@ class OptionsService
                 continue;
             }
             $instance = new $className();
-            $options[$instance->getSort()] = [
+            $tabId = $instance->getTabId();
+            $options[$tabId][$instance->getSort()] = [
                 "id" => $instance->getId(),
                 "name" => $instance->getName(),
                 "type" => $instance->getType(),
-                "tabId" => $instance->getTabId(),
+                "tabId" => $tabId,
                 "params" => $instance->getParams(),
             ];
         }
-        ksort($options);
-        $this->options = array_values($options);
+        foreach ($options as &$option) {
+            ksort($option);
+            $option = array_values($option);
+        }
+        unset($option);
+
+        $this->options = $options;
     }
 
     /**
-     * @throws NotFoundExceptionInterface
-     * @throws ObjectNotFoundException
-     * @throws ReflectionException
-     * @throws SystemException
+     * @return void
+     * @throws ModuleException
      */
     private function registerProviders(): void
     {
@@ -174,7 +173,7 @@ class OptionsService
         /** @var ClassList $classList */
         $classList = Container::get(ClassList::SERVICE_CODE);
 
-        $moduleRoot = Loader::getLocal('modules/'.$classList->getModuleCode().'/lib');
+        $moduleRoot = Loader::getLocal('modules/' . $classList->getModuleCode() . '/lib');
         $relativePath = str_replace($moduleRoot, '', __DIR__ . '/Providers');
 
         $providerClasses = $classList->setSubClassesFilter([IOptionProvider::class])->getFromLib($relativePath);
@@ -186,10 +185,9 @@ class OptionsService
     }
 
     /**
-     * @throws NotFoundExceptionInterface
-     * @throws ObjectNotFoundException
-     * @throws ReflectionException
-     * @throws SystemException
+     * @param string $type
+     * @return IOptionProvider|null
+     * @throws ModuleException
      */
     public function getProvider(string $type): ?IOptionProvider
     {
@@ -198,10 +196,9 @@ class OptionsService
     }
 
     /**
-     * @throws NotFoundExceptionInterface
-     * @throws ObjectNotFoundException
-     * @throws ReflectionException
-     * @throws SystemException
+     * @param array $option
+     * @return string
+     * @throws ModuleException
      */
     private function renderOption(array $option): string
     {
@@ -213,10 +210,9 @@ class OptionsService
     }
 
     /**
-     * @throws NotFoundExceptionInterface
-     * @throws ObjectNotFoundException
-     * @throws ReflectionException
-     * @throws SystemException
+     * @param HttpRequest $request
+     * @return void
+     * @throws ModuleException
      */
     private function saveOptions(HttpRequest $request): void
     {
