@@ -1,7 +1,8 @@
 <?php
 
-use Bitrix\Main\Data\Cache;
-use Bitrix\Main\Data\TaggedCache;
+/** @noinspection DuplicatedCode */
+
+use Bitrix\Main\Application;
 
 defined('B_PROLOG_INCLUDED') || die;
 
@@ -13,15 +14,18 @@ $settings = [
 ];
 
 $moduleId = basename(__DIR__);
-$cache = Cache::createInstance();
-$taggedCache = new TaggedCache();
-$cacheId = "service_locator_$moduleId";
-$cacheDir = "/$moduleId/";
+$cacheId = "cache.$moduleId";
+$ttl = 86400;
+$cacheDir = "/$moduleId/service_locator/";
 
-$locatorServices = [];
-if ($cache->startDataCache(86400, $cacheId, $cacheDir)) {
-    $taggedCache->startTagCache($cacheDir);
-    $taggedCache->registerTag($cacheId);
+$cache = Application::getInstance()->getCache();
+$cache->initCache($ttl, $cacheId, $cacheDir);
+$cachedVars = $cache->getVars();
+
+if ($cachedVars !== false) {
+    $locatorServices = $cachedVars;
+} else {
+    $locatorServices = [];
 
     $serviceLocatorDir = __DIR__ . '/service_locator';
     if (is_dir($serviceLocatorDir)) {
@@ -42,10 +46,12 @@ if ($cache->startDataCache(86400, $cacheId, $cacheDir)) {
         }
     }
 
-    $cache->endDataCache($locatorServices);
+    $taggedCache = Application::getInstance()->getTaggedCache();
+    $cache->startDataCache($ttl, $cacheId, $cacheDir);
+    $taggedCache->startTagCache($cacheDir);
+    $taggedCache->registerTag($cacheId);
     $taggedCache->endTagCache();
-} else {
-    $locatorServices = $cache->getVars();
+    $cache->endDataCache($locatorServices);
 }
 
 $settings['services']['value'] = array_merge($locatorServices, $settings['services']['value']);
