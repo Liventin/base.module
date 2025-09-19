@@ -220,10 +220,12 @@ class OptionsService
             return;
         }
 
-        foreach ($this->options as $option) {
-            $value = $request->getPost($option["id"]);
-            $provider = $this->getProvider($option["type"]);
-            $provider?->save($option, $this->moduleId, $value);
+        foreach ($this->options as $tabOptions) {
+            foreach ($tabOptions as $option) {
+                $value = $request->getPost($option["id"]);
+                $provider = $this->getProvider($option["type"]);
+                $provider?->save($option, $this->moduleId, $value);
+            }
         }
     }
 }

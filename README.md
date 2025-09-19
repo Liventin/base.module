@@ -57,7 +57,17 @@ redirect (optional)
 </tr>
 <tr>
 <td>
+<a href="https://github.com/Liventin/base.module.rest.routers">Bitrix Rest Router for event</a>
+</td>
+</tr>
+<tr>
+<td>
 <a href="https://github.com/Liventin/base.module.result.modifier.injection">Result Modifier Injection</a>
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.userfield.enumeration">User Fields Enumeration</a>
 </td>
 </tr>
 <tr>
