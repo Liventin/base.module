@@ -204,7 +204,7 @@ class base_module extends CModule
                 $param === null ? $instance->$method() : $instance->$method($param);
                 $installed[] = $item['CLASS'];
             } catch (Throwable $e) {
-                $this->exception->AddMessage(['text' => $e->getMessage()]);
+                $this->exception->AddMessage(['text' => $e->getMessage()."\n\n".$e->getTraceAsString()]);
                 if ($rollbackInterface && $rollbackMethod && $rollbackSortMethod) {
                     $this->rollback($installed, $rollbackInterface, $rollbackMethod, $rollbackSortMethod);
                 }

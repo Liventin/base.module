@@ -46,6 +46,12 @@ redirect (optional)
 </td>
 </tr>
 <tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.orm">Bitrix Orm</a>
+</td>
+</tr>
+<tr>
 <td>
 <a href="https://github.com/Liventin/base.module.smartprocess">SmartProcess</a>
 </td>
