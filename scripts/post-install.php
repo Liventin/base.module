@@ -111,7 +111,6 @@ $replacements = [
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
 $vendorPath = "$moduleDir/vendor/";
 
-
 // Копируем .settings.php, если отсутствует
 $rootSettingsPath = "$moduleDir/.settings.php";
 if (!file_exists($rootSettingsPath)) {
@@ -440,9 +439,10 @@ foreach ($packagesToProcess as $package) {
     }
 }
 
-// Очищаем кэш для текущего модуля
+//// Очищаем кэш для текущего модуля
 $taggedCache = new TaggedCache();
-$taggedCache->clearByTag("service_locator_$moduleName");
+$taggedCache->clearByTag('cache'.$moduleName);
+$taggedCache->endTagCache();
 echo "Cleared service locator cache for module $moduleName\n";
 
 echo "Module namespace and variables updated for $moduleName\n";
