@@ -1,6 +1,30 @@
 <?php
 
+/**
+ * Пост-инсталл-скрипт для модулей типа bitrix-d7-module.
+ *
+ * Дополнительно: если все прод-зависимости (кроме roave/security-advisories в require-dev)
+ * являются пакетами нашего вендора (liventin/*), то после успешной установки
+ * можно полностью очистить vendor/ вместе с composer.lock, чтобы при каждой
+ * пересборке модуля composer заново скачивал актуальные версии.
+ * Это намеренное поведение для "конструктора модулей" — см. константы и $cleanVendor.
+ */
+
 use Bitrix\Main\Data\TaggedCache;
+
+// ---- Настройки очистки vendor ------------------------------------------------
+// Разрешить удаление vendor/ + composer.lock? (true = включить на этом прогоне)
+$cleanVendorEnabled = true;
+
+// Пакеты, которые допустимы как "свои" и не считаются чужими (vendored).
+// Всё, что НЕ входит сюда (кроме dev-пакета roave/security-advisories),
+// считается "чужим" прод-зависимостью и блокирует очистку.
+$ownedVendorPrefix = 'liventin/';
+
+// Dev-only пакет, который не должен блокировать очистку vendor/.
+$allowedDevPackages = ['roave/security-advisories'];
+
+// -----------------------------------------------------------------------------
 
 // Определяем корневую директорию модуля
 $moduleDir = dirname(__DIR__, 4);
@@ -42,15 +66,45 @@ try {
 }
 
 // Извлекаем имя модуля и формируем namespace
-$moduleName = explode('/', $composerData['name'])[1] ?? throw new RuntimeException(
+$moduleName = explode('/', $composerData['name'])[1] ?? throw new \RuntimeException(
     "Could not determine module name from composer.json."
 );
-$namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
+$namespacePrefix = str_replace('.', '\\\\', ucwords($moduleName, '.'));
 echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 
 // Читаем service-redirect
 $serviceRedirects = $composerData['extra']['service-redirect'] ?? [];
 echo "Service redirects: " . json_encode($serviceRedirects, JSON_THROW_ON_ERROR) . "\n";
+
+// Вспомогательная функция: проверяем, что все прод-зависимости (кроме разрешённых dev)
+// принадлежат нашему вендору. Возвращает true, если НЕТ чужих пакетов.
+function hasOnlyOwnedVendorDependencies(array $composerData, string $ownedPrefix, array $allowedDev = []): bool
+{
+    $require = $composerData['require'] ?? [];
+    $requireDev = $composerData['require-dev'] ?? [];
+
+    // Прод-зависимости: всё из require. Если пакет в require и одновременно не в requireDev —
+    // он точно продовский. Для проверки "только свои" оцениваем require (прод).
+    foreach ($require as $package => $version) {
+        if ($package === 'php') {
+            continue;
+        }
+        // Пакет может быть объявлен и в require, и в require-dev (например roave).
+        // Считаем его "чужим" только если он НЕ в allowedDev.
+        if (!in_array($package, $allowedDev, true) && !str_starts_with($package, $ownedPrefix)) {
+            return false;
+        }
+    }
+
+    // require-dev: разрешаем только свои + allowedDev.
+    foreach ($requireDev as $package => $version) {
+        if (!in_array($package, $allowedDev, true) && !str_starts_with($package, $ownedPrefix)) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // Определяем директорию vendor/
 $vendorDir = dirname(__DIR__, 3);
@@ -105,7 +159,7 @@ $protectedPaths = [
 ];
 $replacements = [
     'base.module' => $moduleName,
-    'Base\\Module' => $namespacePrefix,
+    'Base\\\\Module' => $namespacePrefix,
     'base_module' => str_replace('.', '_', $moduleName),
 ];
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
@@ -149,7 +203,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
 
     // Если есть перенаправление, обновляем className и constructorParams
     if ($redirectModule) {
-        $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
+        $redirectNamespacePrefix = str_replace('.', '\\\\', ucwords($redirectModule, '.'));
 
         // Обновляем className
         $classNameStart = strpos($arrayContent, "'className' => ");
@@ -161,12 +215,12 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
                 $className = trim($className, " \t\n\r\0\x0B'\"");
                 $className = str_replace('::class', '', $className);
 
-                $lastSlashPos = strrpos($className, '\\');
+                $lastSlashPos = strrpos($className, '\\\\');
                 if ($lastSlashPos !== false) {
                     $classNamespace = substr($className, 0, $lastSlashPos);
                     $classOnly = substr($className, $lastSlashPos + 1);
-                    $updatedNamespace = str_replace('Base\\Module', $redirectNamespacePrefix, $classNamespace);
-                    $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
+                    $updatedNamespace = str_replace('Base\\\\Module', $redirectNamespacePrefix, $classNamespace);
+                    $newClassName = $updatedNamespace . '\\\\' . $classOnly . '::class';
                     $arrayContent = substr($arrayContent, 0, $classNameStart) . ' ' . $newClassName . substr(
                             $arrayContent,
                             $classNameEnd
@@ -270,10 +324,17 @@ function removeMatchingSrcFiles(string $packageSrcDir, string $moduleSrcDir): vo
 // Обрабатываем каждый пакет
 $targetServiceLocatorDir = "$moduleDir/service_locator";
 
-// Очищаем папку service_locator модуля перед копированием новых файлов
-if (is_dir($targetServiceLocatorDir)) {
-    echo "Clearing service_locator directory in module...\n";
-    removeDirectory($targetServiceLocatorDir);
+// Очищаем папку service_locator модуля перед копированием новых файлов,
+// но только если есть источник для восстановления (class.list.php у base.module).
+// Иначе после очистки нечем будет отдать обратно, и папка потеряется навсегда.
+$baseModuleClassList = "$vendorDir/liventin/base.module/service_locator/class.list.php";
+if (file_exists($baseModuleClassList)) {
+    if (is_dir($targetServiceLocatorDir)) {
+        echo "Clearing service_locator directory in module...\n";
+        removeDirectory($targetServiceLocatorDir);
+    }
+} else {
+    echo "WARNING: no source class.list.php for base.module in vendor; keeping existing service_locator to avoid data loss.\n";
 }
 
 foreach ($packagesToProcess as $package) {
@@ -292,9 +353,9 @@ foreach ($packagesToProcess as $package) {
     }
 
     // Формируем пути исключения
-    $excludePaths = array_map(static fn($path) => rtrim("$packageDir$path", '/\\'), $excludePathsBase);
+    $excludePaths = array_map(static fn($path) => rtrim("$packageDir$path", '/\\\\'), $excludePathsBase);
     if ($hasRedirect) {
-        $excludePaths[] = rtrim("$packageDir/lib/Src", '/\\');
+        $excludePaths[] = rtrim("$packageDir/lib/Src", '/\\\\');
     }
     echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
 
@@ -317,7 +378,7 @@ foreach ($packagesToProcess as $package) {
 
     foreach ($iterator as $item) {
         $itemPath = $item->getPathname();
-        $normalizedItemPath = str_replace('\\', '/', $itemPath);
+        $normalizedItemPath = str_replace('\\\\', '/', $itemPath);
         if (in_array(
             true,
             array_map(static fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths),
@@ -336,7 +397,7 @@ foreach ($packagesToProcess as $package) {
                 !mkdir($targetPath, 0755, true) &&
                 !is_dir($targetPath)
             ) {
-                throw new RuntimeException("Directory '$targetPath' was not created");
+                throw new \RuntimeException("Directory '$targetPath' was not created");
             }
             echo "Created directory: $targetPath\n";
         } else {
@@ -391,7 +452,7 @@ foreach ($packagesToProcess as $package) {
             !mkdir($targetServiceLocatorDir, 0755, true) &&
             !is_dir($targetServiceLocatorDir)
         ) {
-            throw new RuntimeException("Directory '$targetServiceLocatorDir' was not created");
+            throw new \RuntimeException("Directory '$targetServiceLocatorDir' was not created");
         }
 
         $iterator = new DirectoryIterator($packageServiceLocatorDir);
@@ -416,6 +477,7 @@ foreach ($packagesToProcess as $package) {
     }
 
     // Очищаем vendor/[package]/, оставляя только scripts, composer.json и README.md
+    // (service_locator сохраняем как источник для пересборки при следующем запуске)
     echo "Cleaning up vendor package directory $packageDir...\n";
     $iterator = new DirectoryIterator($packageDir);
     foreach ($iterator as $item) {
@@ -424,7 +486,7 @@ foreach ($packagesToProcess as $package) {
         }
         $itemPath = $item->getPathname();
         $itemName = $item->getFilename();
-        if (in_array($itemName, ['scripts', 'composer.json', 'README.md'])) {
+        if (in_array($itemName, ['scripts', 'composer.json', 'README.md', 'service_locator'])) {
             echo "Preserving $itemPath in vendor\n";
             continue;
         }
@@ -439,11 +501,37 @@ foreach ($packagesToProcess as $package) {
     }
 }
 
-//// Очищаем кэш для текущего модуля
+// Очищаем кэш для текущего модуля
 $taggedCache = new TaggedCache();
 $taggedCache->clearByTag('cache'.$moduleName);
 $taggedCache->endTagCache();
 echo "Cleared service locator cache for module $moduleName\n";
+
+// ---- Очистка vendor/ + composer.lock (после успешной установки) ---------------
+if ($cleanVendorEnabled) {
+    $onlyOwned = hasOnlyOwnedVendorDependencies($composerData, $ownedVendorPrefix, $allowedDevPackages);
+
+    echo "Checking whether all prod dependencies are owned by vendor...\n";
+    if ($onlyOwned) {
+        echo "All prod dependencies are owned (liventin/* or allowed dev). Clearing vendor/ and composer.lock...\n";
+        if (is_dir($vendorDir)) {
+            echo "Removing vendor directory...\n";
+            removeDirectory($vendorDir);
+        }
+        $composerLockPath = "$moduleDir/composer.lock";
+        if (file_exists($composerLockPath)) {
+            echo "Removing composer.lock...\n";
+            unlink($composerLockPath);
+        }
+        $autoloadPath = "$moduleDir/vendor/autoload.php";
+        if (file_exists($autoloadPath)) {
+            echo "Removing vendor/autoload.php (part of removed vendor dir)...\n";
+        }
+        echo "Vendor and composer.lock cleared. Composer will re-download packages on next install.\n";
+    } else {
+        echo "WARNING: found non-owned prod dependencies; vendor/ and composer.lock were NOT cleared.\n";
+    }
+}
 
 echo "Module namespace and variables updated for $moduleName\n";
 error_log("Post-install script completed for $moduleName");
