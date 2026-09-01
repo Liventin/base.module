@@ -66,9 +66,7 @@ try {
 }
 
 // Извлекаем имя модуля и формируем namespace
-$moduleName = explode('/', $composerData['name'])[1] ?? throw new \RuntimeException(
-    "Could not determine module name from composer.json."
-);
+$moduleName = str_replace('/', '.', $composerData['name']);
 $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 
