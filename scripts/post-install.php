@@ -500,10 +500,14 @@ foreach ($packagesToProcess as $package) {
 }
 
 // Очищаем кэш для текущего модуля
-$taggedCache = new TaggedCache();
-$taggedCache->clearByTag('cache'.$moduleName);
-$taggedCache->endTagCache();
-echo "Cleared service locator cache for module $moduleName\n";
+if (class_exists(TaggedCache::class)) {
+    $taggedCache = new TaggedCache();
+    $taggedCache->clearByTag('cache' . $moduleName);
+    $taggedCache->endTagCache();
+    echo "Cleared service locator cache for module $moduleName\n";
+} else {
+    echo "Bitrix TaggedCache class not available; skipped cache clear (no Bitrix core).\n";
+}
 
 // ---- Очистка vendor/ + composer.lock (после успешной установки) ---------------
 if ($cleanVendorEnabled) {
