@@ -159,7 +159,7 @@ $protectedPaths = [
 ];
 $replacements = [
     'base.module' => $moduleName,
-    'Base\\\\Module' => $namespacePrefix,
+    'Base\Module' => $namespacePrefix,
     'base_module' => str_replace('.', '_', $moduleName),
 ];
 $replacements['BASE_MODULE'] = strtoupper($replacements['base_module']);
@@ -203,7 +203,7 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
 
     // Если есть перенаправление, обновляем className и constructorParams
     if ($redirectModule) {
-        $redirectNamespacePrefix = str_replace('.', '\\\\', ucwords($redirectModule, '.'));
+        $redirectNamespacePrefix = str_replace('.', '\\', ucwords($redirectModule, '.'));
 
         // Обновляем className
         $classNameStart = strpos($arrayContent, "'className' => ");
@@ -215,12 +215,12 @@ function updateServiceLocatorFile(string $filePath, string $moduleName, string $
                 $className = trim($className, " \t\n\r\0\x0B'\"");
                 $className = str_replace('::class', '', $className);
 
-                $lastSlashPos = strrpos($className, '\\\\');
+                $lastSlashPos = strrpos($className, '\\');
                 if ($lastSlashPos !== false) {
                     $classNamespace = substr($className, 0, $lastSlashPos);
                     $classOnly = substr($className, $lastSlashPos + 1);
-                    $updatedNamespace = str_replace('Base\\\\Module', $redirectNamespacePrefix, $classNamespace);
-                    $newClassName = $updatedNamespace . '\\\\' . $classOnly . '::class';
+                    $updatedNamespace = str_replace('Base\Module', $redirectNamespacePrefix, $classNamespace);
+                    $newClassName = $updatedNamespace . '\\' . $classOnly . '::class';
                     $arrayContent = substr($arrayContent, 0, $classNameStart) . ' ' . $newClassName . substr(
                             $arrayContent,
                             $classNameEnd
