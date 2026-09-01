@@ -69,7 +69,7 @@ try {
 $moduleName = explode('/', $composerData['name'])[1] ?? throw new \RuntimeException(
     "Could not determine module name from composer.json."
 );
-$namespacePrefix = str_replace('.', '\\\\', ucwords($moduleName, '.'));
+$namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 
 // Читаем service-redirect
