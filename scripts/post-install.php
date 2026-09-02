@@ -65,8 +65,11 @@ try {
     exit(1);
 }
 
-// Извлекаем имя модуля и формируем namespace
-$moduleName = str_replace('/', '.', $composerData['name']);
+// Извлекаем имя модуля и формируем namespace.
+// Имя модуля = часть composer-пакета после слеша; vendor-сегмент и слеш НЕ используются.
+// Пример: composer 'sintec/sintec.testconstructmodule' -> 'sintec.testconstructmodule'.
+$packageName = $composerData['name'];
+$moduleName = str_contains($packageName, '/') ? explode('/', $packageName, 2)[1] : $packageName;
 $namespacePrefix = str_replace('.', '\\', ucwords($moduleName, '.'));
 echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 
