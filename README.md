@@ -25,6 +25,15 @@ redirect (optional)
   }
 },
 ```
+remove (optional)
+```
+"extra": {
+  "service-remove": [
+    "liventin/base.module.handlers"
+  ]
+},
+```
+Пакет остаётся в `require` (composer его скачает), но `post-install.php` вместо разворачивания удалит из модуля файлы, которые пакет развернул ранее (включая файлы `service_locator`, если пакет был в `service-redirect`).
 
 <table>
 <tr>
