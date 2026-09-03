@@ -33,7 +33,7 @@ remove (optional)
   ]
 },
 ```
-Пакет остаётся в `require` (composer его скачает), но `post-install.php` вместо разворачивания удалит из модуля файлы, которые пакет развернул ранее (включая файлы `service_locator`, если пакет был в `service-redirect`).
+The package stays in `require` (composer will still download it), but `post-install.php` removes the files the package had previously deployed into the module (including `service_locator` files, when the package was in `service-redirect`).
 
 <table>
 <tr>
@@ -221,7 +221,7 @@ class TabMain implements Tab
 
     public static function getName(): string
     {
-        return 'Основные';
+        return 'Main';
     }
 
     public static function getSort(): int

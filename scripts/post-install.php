@@ -376,69 +376,23 @@ function removeDeployedFiles(string $packageDir, string $moduleDir, array $exclu
     }
 }
 
-// Функция для удаления service_locator файлов пакета из модуля (для пакетов из service-remove).
-function removePackageServiceLocator(string $packageDir, string $targetServiceLocatorDir): void
+// Функция для полного удаления папки пакета из vendor/ после успешного разворачивания.
+// Источник пересборки не нужен: composer при следующем запуске всё равно перекачает пакет заново.
+function removeVendorPackageDir(string $packageDir): void
 {
-    $packageServiceLocatorDir = "$packageDir/service_locator";
-    if (!is_dir($packageServiceLocatorDir) || !is_dir($targetServiceLocatorDir)) {
-        return;
-    }
-
-    $iterator = new DirectoryIterator($packageServiceLocatorDir);
-    foreach ($iterator as $fileInfo) {
-        if ($fileInfo->isDot() || !$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
-            continue;
-        }
-
-        $targetFile = "$targetServiceLocatorDir/{$fileInfo->getFilename()}";
-        if (file_exists($targetFile)) {
-            echo "Removing service_locator file $targetFile (from removed package)...\n";
-            unlink($targetFile);
-        }
-    }
-}
-
-// Функция для очистки vendor/[package]/, оставляя только scripts, composer.json и README.md
-// (service_locator сохраняем как источник для пересборки при следующем запуске).
-function cleanupVendorPackageDir(string $packageDir): void
-{
-    echo "Cleaning up vendor package directory $packageDir...\n";
-    $iterator = new DirectoryIterator($packageDir);
-    foreach ($iterator as $item) {
-        if ($item->isDot()) {
-            continue;
-        }
-        $itemPath = $item->getPathname();
-        $itemName = $item->getFilename();
-        if (in_array($itemName, ['scripts', 'composer.json', 'README.md', 'service_locator'])) {
-            echo "Preserving $itemPath in vendor\n";
-            continue;
-        }
-
-        if ($item->isDir()) {
-            echo "Removing directory $itemPath from vendor...\n";
-            removeDirectory($itemPath);
-        } else {
-            echo "Removing file $itemPath from vendor...\n";
-            unlink($itemPath);
-        }
-    }
+    echo "Removing vendor package directory $packageDir...\n";
+    removeDirectory($packageDir);
 }
 
 // Обрабатываем каждый пакет
 $targetServiceLocatorDir = "$moduleDir/service_locator";
 
-// Очищаем папку service_locator модуля перед копированием новых файлов,
-// но только если есть источник для восстановления (class.list.php у base.module).
-// Иначе после очистки нечем будет отдать обратно, и папка потеряется навсегда.
-$baseModuleClassList = "$vendorDir/liventin/base.module/service_locator/class.list.php";
-if (file_exists($baseModuleClassList)) {
-    if (is_dir($targetServiceLocatorDir)) {
-        echo "Clearing service_locator directory in module...\n";
-        removeDirectory($targetServiceLocatorDir);
-    }
-} else {
-    echo "WARNING: no source class.list.php for base.module in vendor; keeping existing service_locator to avoid data loss.\n";
+// Очищаем папку service_locator модуля перед копированием новых файлов.
+// Источник (vendor/liventin/base.module/service_locator/) на этом прогоне ещё на месте,
+// поэтому папка модуля будет корректно восстановлена ниже в цикле.
+if (is_dir($targetServiceLocatorDir)) {
+    echo "Clearing service_locator directory in module...\n";
+    removeDirectory($targetServiceLocatorDir);
 }
 
 foreach ($packagesToProcess as $package) {
@@ -474,8 +428,7 @@ foreach ($packagesToProcess as $package) {
     // Пакет остаётся в require, но его файлы не разворачиваются.
     if ($isRemove) {
         removeDeployedFiles($packageDir, $moduleDir, $excludePaths);
-        removePackageServiceLocator($packageDir, $targetServiceLocatorDir);
-        cleanupVendorPackageDir($packageDir);
+        removeVendorPackageDir($packageDir);
         continue;
     }
 
@@ -596,9 +549,8 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
-    // Очищаем vendor/[package]/, оставляя только scripts, composer.json и README.md
-    // (service_locator сохраняем как источник для пересборки при следующем запуске)
-    cleanupVendorPackageDir($packageDir);
+    // Удаляем папку пакета из vendor/ — на следующем запуске composer перекачает её заново
+    removeVendorPackageDir($packageDir);
 }
 
 // Очищаем кэш для текущего модуля
