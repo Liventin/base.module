@@ -77,6 +77,11 @@ echo "Module name: $moduleName, Namespace prefix: $namespacePrefix\n";
 $serviceRedirects = $composerData['extra']['service-redirect'] ?? [];
 echo "Service redirects: " . json_encode($serviceRedirects, JSON_THROW_ON_ERROR) . "\n";
 
+// Читаем service-remove. Пакеты из этого списка остаются в require (composer их скачает),
+// но вместо разворачивания файлов мы удаляем из модуля то, что они развернули ранее.
+$serviceRemove = $composerData['extra']['service-remove'] ?? [];
+echo "Service remove: " . json_encode($serviceRemove, JSON_THROW_ON_ERROR) . "\n";
+
 // Вспомогательная функция: проверяем, что все прод-зависимости (кроме разрешённых dev)
 // принадлежат нашему вендору. Возвращает true, если НЕТ чужих пакетов.
 function hasOnlyOwnedVendorDependencies(array $composerData, string $ownedPrefix, array $allowedDev = []): bool
@@ -322,20 +327,72 @@ function removeMatchingSrcFiles(string $packageSrcDir, string $moduleSrcDir): vo
     removeEmptyDirectories($moduleSrcDir);
 }
 
+// Функция для удаления файлов, развёрнутых в модуль пакетом, который теперь помечен на удаление
+// (extra.service-remove). Проходит по всем файлам пакета в vendor/ и для каждого проверяет наличие
+// соответствующего файла в директории модуля, куда он должен был быть скопирован при установке;
+// при наличии — удаляет его, а затем подчищает опустевшие директории пакета.
+function removeDeployedFiles(string $packageDir, string $moduleDir, array $excludePaths): void
+{
+    if (!is_dir($packageDir) || !is_dir($moduleDir)) {
+        return;
+    }
+
+    $moduleDirs = [];
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($packageDir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $itemPath = $item->getPathname();
+        $normalizedItemPath = str_replace('\\\\', '/', $itemPath);
+        if (in_array(
+            true,
+            array_map(static fn($path) => str_starts_with($normalizedItemPath, $path), $excludePaths),
+            true
+        )) {
+            continue;
+        }
+
+        $relativePath = substr($itemPath, strlen($packageDir) + 1);
+        $targetPath = "$moduleDir/$relativePath";
+
+        if ($item->isDir()) {
+            $moduleDirs[] = $targetPath;
+        } elseif (file_exists($targetPath)) {
+            echo "Removing deployed file $targetPath (package $packageDir is in service-remove)...\n";
+            unlink($targetPath);
+        }
+    }
+
+    // Удаляем опустевшие директории пакета в модуле (от большей вложенности к меньшей)
+    usort($moduleDirs, static fn($a, $b) => substr_count($b, '/') <=> substr_count($a, '/'));
+    foreach ($moduleDirs as $dir) {
+        if (is_dir($dir) && !count(array_diff(scandir($dir), ['.', '..']))) {
+            echo "Removing empty directory $dir (from removed package)...\n";
+            rmdir($dir);
+        }
+    }
+}
+
+// Функция для полного удаления папки пакета из vendor/ после успешного разворачивания.
+// Источник пересборки не нужен: composer при следующем запуске всё равно перекачает пакет заново.
+function removeVendorPackageDir(string $packageDir): void
+{
+    echo "Removing vendor package directory $packageDir...\n";
+    removeDirectory($packageDir);
+}
+
 // Обрабатываем каждый пакет
 $targetServiceLocatorDir = "$moduleDir/service_locator";
 
-// Очищаем папку service_locator модуля перед копированием новых файлов,
-// но только если есть источник для восстановления (class.list.php у base.module).
-// Иначе после очистки нечем будет отдать обратно, и папка потеряется навсегда.
-$baseModuleClassList = "$vendorDir/liventin/base.module/service_locator/class.list.php";
-if (file_exists($baseModuleClassList)) {
-    if (is_dir($targetServiceLocatorDir)) {
-        echo "Clearing service_locator directory in module...\n";
-        removeDirectory($targetServiceLocatorDir);
-    }
-} else {
-    echo "WARNING: no source class.list.php for base.module in vendor; keeping existing service_locator to avoid data loss.\n";
+// Очищаем папку service_locator модуля перед копированием новых файлов.
+// Источник (vendor/liventin/base.module/service_locator/) на этом прогоне ещё на месте,
+// поэтому папка модуля будет корректно восстановлена ниже в цикле.
+if (is_dir($targetServiceLocatorDir)) {
+    echo "Clearing service_locator directory in module...\n";
+    removeDirectory($targetServiceLocatorDir);
 }
 
 foreach ($packagesToProcess as $package) {
@@ -344,6 +401,13 @@ foreach ($packagesToProcess as $package) {
     if (!is_dir($packageDir)) {
         echo "Could not find package directory at $packageDir.\n";
         continue;
+    }
+
+    // Проверяем, помечен ли пакет на удаление (extra.service-remove).
+    // Пакет остаётся в require (composer его скачает), но развёрнутые файлы удаляются.
+    $isRemove = array_key_exists($package, $serviceRemove) || in_array($package, $serviceRemove, true);
+    if ($isRemove) {
+        echo "Package $package is in service-remove; removing deployed files instead of copying...\n";
     }
 
     // Проверяем перенаправление
@@ -355,10 +419,18 @@ foreach ($packagesToProcess as $package) {
 
     // Формируем пути исключения
     $excludePaths = array_map(static fn($path) => rtrim("$packageDir$path", '/\\\\'), $excludePathsBase);
-    if ($hasRedirect) {
+    if ($hasRedirect && !$isRemove) {
         $excludePaths[] = rtrim("$packageDir/lib/Src", '/\\\\');
     }
     echo "Exclude paths for $package: " . json_encode($excludePaths, JSON_THROW_ON_ERROR) . "\n";
+
+    // Если пакет помечен на удаление — убираем развёрнутые файлы из модуля и переходим к следующему.
+    // Пакет остаётся в require, но его файлы не разворачиваются.
+    if ($isRemove) {
+        removeDeployedFiles($packageDir, $moduleDir, $excludePaths);
+        removeVendorPackageDir($packageDir);
+        continue;
+    }
 
     // Если есть перенаправление, удаляем только те файлы из lib/Src модуля, которые есть в пакете
     if ($hasRedirect) {
@@ -477,29 +549,8 @@ foreach ($packagesToProcess as $package) {
         }
     }
 
-    // Очищаем vendor/[package]/, оставляя только scripts, composer.json и README.md
-    // (service_locator сохраняем как источник для пересборки при следующем запуске)
-    echo "Cleaning up vendor package directory $packageDir...\n";
-    $iterator = new DirectoryIterator($packageDir);
-    foreach ($iterator as $item) {
-        if ($item->isDot()) {
-            continue;
-        }
-        $itemPath = $item->getPathname();
-        $itemName = $item->getFilename();
-        if (in_array($itemName, ['scripts', 'composer.json', 'README.md', 'service_locator'])) {
-            echo "Preserving $itemPath in vendor\n";
-            continue;
-        }
-
-        if ($item->isDir()) {
-            echo "Removing directory $itemPath from vendor...\n";
-            removeDirectory($itemPath);
-        } else {
-            echo "Removing file $itemPath from vendor...\n";
-            unlink($itemPath);
-        }
-    }
+    // Удаляем папку пакета из vendor/ — на следующем запуске composer перекачает её заново
+    removeVendorPackageDir($packageDir);
 }
 
 // Очищаем кэш для текущего модуля

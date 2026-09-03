@@ -25,6 +25,15 @@ redirect (optional)
   }
 },
 ```
+remove (optional)
+```
+"extra": {
+  "service-remove": [
+    "liventin/base.module.handlers"
+  ]
+},
+```
+The package stays in `require` (composer will still download it), but `post-install.php` removes the files the package had previously deployed into the module (including `service_locator` files, when the package was in `service-redirect`).
 
 <table>
 <tr>
@@ -212,7 +221,7 @@ class TabMain implements Tab
 
     public static function getName(): string
     {
-        return 'Основные';
+        return 'Main';
     }
 
     public static function getSort(): int
