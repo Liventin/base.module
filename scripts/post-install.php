@@ -83,9 +83,24 @@ $serviceRemove = $composerData['extra']['service-remove'] ?? [];
 echo "Service remove: " . json_encode($serviceRemove, JSON_THROW_ON_ERROR) . "\n";
 
 // Вспомогательная функция: проверяем, что все прод-зависимости (кроме разрешённых dev)
-// принадлежат нашему вендору. Возвращает true, если НЕТ чужих пакетов.
-function hasOnlyOwnedVendorDependencies(array $composerData, string $ownedPrefix, array $allowedDev = []): bool
-{
+// принадлежат нашему вендору. "Своим" считается пакет, чьё имя начинается с $ownedPrefix
+// И базовое имя (часть после слеша) начинается с $packageNamePrefix — т.е. относится
+// к конструктору (liventin/base.module*). Всё, что НЕ проходит эту проверку
+// (включая посторонние репозитории пользователя liventin), блокирует очистку vendor/.
+function hasOnlyOwnedVendorDependencies(
+    array $composerData,
+    string $ownedPrefix,
+    string $packageNamePrefix,
+    array $allowedDev = []
+): bool {
+    $isOwned = static function (string $package) use ($ownedPrefix, $packageNamePrefix): bool {
+        if (!str_starts_with($package, $ownedPrefix)) {
+            return false;
+        }
+        $baseName = str_contains($package, '/') ? explode('/', $package, 2)[1] : $package;
+        return str_starts_with($baseName, $packageNamePrefix);
+    };
+
     $require = $composerData['require'] ?? [];
     $requireDev = $composerData['require-dev'] ?? [];
 
@@ -97,14 +112,14 @@ function hasOnlyOwnedVendorDependencies(array $composerData, string $ownedPrefix
         }
         // Пакет может быть объявлен и в require, и в require-dev (например roave).
         // Считаем его "чужим" только если он НЕ в allowedDev.
-        if (!in_array($package, $allowedDev, true) && !str_starts_with($package, $ownedPrefix)) {
+        if (!in_array($package, $allowedDev, true) && !$isOwned($package)) {
             return false;
         }
     }
 
     // require-dev: разрешаем только свои + allowedDev.
     foreach ($requireDev as $package => $version) {
-        if (!in_array($package, $allowedDev, true) && !str_starts_with($package, $ownedPrefix)) {
+        if (!in_array($package, $allowedDev, true) && !$isOwned($package)) {
             return false;
         }
     }
@@ -116,8 +131,14 @@ function hasOnlyOwnedVendorDependencies(array $composerData, string $ownedPrefix
 $vendorDir = dirname(__DIR__, 3);
 echo "Vendor directory: $vendorDir\n";
 
-// Находим пакеты, зависящие от liventin/base.module
+// Находим пакеты, зависящие от liventin/base.module.
+// К конструктору относятся ТОЛЬКО пакеты, чьё имя удовлетворяет префиксу вендора
+// И базовому префиксу пакета ('base.module'). Посторонние репозитории пользователя
+// liventin (например liventin/other-package) не разворачиваются, не удаляются и
+// не влияют на очистку vendor: для них пакеты не копируются и они не блокируют
+// проверку «только свои зависимости».
 $packagesToProcess = ['liventin/base.module'];
+$packageNamePrefix = 'base.module';
 $vendorIterator = new DirectoryIterator($vendorDir);
 foreach ($vendorIterator as $vendorItem) {
     if (!$vendorItem->isDir() || $vendorItem->isDot()) {
@@ -130,6 +151,12 @@ foreach ($vendorIterator as $vendorItem) {
         if (!$packageItem->isDot() && $packageItem->isDir()) {
             $packageName = "$vendorName/{$packageItem->getFilename()}";
             if ($packageName === 'liventin/base.module') {
+                continue;
+            }
+
+            // Пропускаем пакеты, не относящиеся к конструктору (не base.module)
+            if (!str_starts_with($packageName, 'liventin/') || !str_starts_with($packageItem->getFilename(), $packageNamePrefix)) {
+                echo "Skipping non-constructor package: $packageName\n";
                 continue;
             }
 
@@ -565,7 +592,7 @@ if (class_exists(TaggedCache::class)) {
 
 // ---- Очистка vendor/ + composer.lock (после успешной установки) ---------------
 if ($cleanVendorEnabled) {
-    $onlyOwned = hasOnlyOwnedVendorDependencies($composerData, $ownedVendorPrefix, $allowedDevPackages);
+    $onlyOwned = hasOnlyOwnedVendorDependencies($composerData, $ownedVendorPrefix, $packageNamePrefix, $allowedDevPackages);
 
     echo "Checking whether all prod dependencies are owned by vendor...\n";
     if ($onlyOwned) {
