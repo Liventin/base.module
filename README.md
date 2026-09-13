@@ -172,37 +172,6 @@ The package stays in `require` (composer will still download it), but `post-inst
 </tr>
 </table>
 
-<table>
-<tr>
-<th>Migration User Fields Providers</th>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.migration.userfields.provider.string">String</a>
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.migration.userfields.provider.datetime">DateTime</a>
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.migration.userfields.provider.enumeration">Enumeration</a>
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.migration.userfields.provider.hlblock">Hl Block</a>
-</td>
-</tr>
-<tr>
-<td>
-<a href="https://github.com/Liventin/base.module.migration.userfields.provider.iblock.element">Iblock Element</a>
-</td>
-</tr>
-</table>
-
 PhpStorm Option Tab Live template
 ```php
 <?php
