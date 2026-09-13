@@ -170,6 +170,11 @@ The package stays in `require` (composer will still download it), but `post-inst
 <a href="https://github.com/Liventin/base.module.options.provider.text">Text</a>
 </td>
 </tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.options.provider.table">Table</a>
+</td>
+</tr>
 </table>
 
 <table>
