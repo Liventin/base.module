@@ -7,6 +7,14 @@ use Bitrix\Main\Application;
 defined('B_PROLOG_INCLUDED') || die;
 
 $settings = [
+    'controllers' => [
+        'value' => [
+            'namespaces' => [
+                '\Base\Module\Controller' => 'api',
+            ],
+        ],
+        'readonly' => true,
+    ],
     'services' => [
         'value' => [],
         'readonly' => true,
