@@ -6,14 +6,24 @@ use Bitrix\Main\Application;
 
 defined('B_PROLOG_INCLUDED') || die;
 
+$moduleId = basename(__DIR__);
+$moduleNamespace = str_replace('.', '\\', ucwords($moduleId, '.'));
+
 $settings = [
+    'controllers' => [
+        'value' => [
+            'namespaces' => [
+                '\\' . $moduleNamespace . '\\Controller' => 'api',
+            ],
+        ],
+        'readonly' => true,
+    ],
     'services' => [
         'value' => [],
         'readonly' => true,
     ],
 ];
 
-$moduleId = basename(__DIR__);
 $cacheId = "cache.$moduleId";
 $ttl = 86400;
 $cacheDir = "/$moduleId/service_locator/";
