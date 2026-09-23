@@ -175,6 +175,11 @@ The package stays in `require` (composer will still download it), but `post-inst
 <a href="https://github.com/Liventin/base.module.options.provider.table">Table</a>
 </td>
 </tr>
+<tr>
+<td>
+<a href="https://github.com/Liventin/base.module.options.provider.js.buttons.row">Buttons Row</a>
+</td>
+</tr>
 </table>
 
 PhpStorm Option Tab Live template
